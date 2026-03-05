@@ -307,7 +307,7 @@ a:hover {
 
 .content-wrapper {
 	margin-left: 320px;
-	padding: 32px 48px;
+	padding: 32px;
 	max-width: 800px;
 	flex: 1;
 	background: #ffffff;
@@ -548,9 +548,12 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		// Wrap code blocks
 		html = this.wrapCodeBlocks(html);
 
+		// Use filename as document title
+		const documentTitle = file.basename;
+
 		// Generate table of contents with proper nesting
 		let toc = '<div class="table-of-contents">';
-		toc += `<h2>${this.translate('Table of Contents')}</h2>`;
+		toc += `<h2>${documentTitle}</h2>`;
 		toc += this.generateNestedTOC(headingsData);
 		toc += '</div>';
 
