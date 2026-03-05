@@ -162,15 +162,55 @@ pre code {
 }
 
 blockquote {
-	border-left: 4px solid #d0d7de;
+	border-left: 4px solid #0969da;
 	background: #f6f8fa;
 	color: #24292f;
-	padding: 0 16px;
+	padding: 12px 16px;
 	margin: 0 0 16px 0;
+	border-radius: 6px;
+	line-height: 1.6;
+}
+
+blockquote p {
+	margin-bottom: 8px;
 }
 
 blockquote p:last-child {
 	margin-bottom: 0;
+}
+
+blockquote > :first-child {
+	margin-top: 0;
+}
+
+blockquote > :last-child {
+	margin-bottom: 0;
+}
+
+blockquote ul,
+blockquote ol {
+	padding-left: 1em;
+	margin-bottom: 8px;
+}
+
+blockquote code {
+	background-color: rgba(0, 0, 0, 0.05);
+	border-radius: 3px;
+	padding: 2px 6px;
+	font-size: 85%;
+}
+
+blockquote pre {
+	background-color: #0d1117;
+	padding: 12px;
+	border-radius: 6px;
+	overflow: auto;
+}
+
+blockquote pre code {
+	background: transparent;
+	color: #c9d1d9;
+	padding: 0;
 }
 
 img {
@@ -242,12 +282,14 @@ a:hover {
 	list-style: none;
 	padding-left: 0;
 	margin: 0;
-	white-space: nowrap;
 }
 
 .table-of-contents li {
 	margin-bottom: 8px;
 	line-height: 1.5;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+	white-space: normal;
 }
 
 .table-of-contents ul ul {
@@ -265,6 +307,9 @@ a:hover {
 	border-radius: 6px;
 	font-size: 0.9em;
 	transition: all 0.2s ease;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+	white-space: normal;
 }
 
 .table-of-contents a:hover {
