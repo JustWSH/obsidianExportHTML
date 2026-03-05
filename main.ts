@@ -179,6 +179,7 @@ img {
 	background-color: #ffffff;
 	border-radius: 6px;
 	margin: 0;
+	border: 1px solid #000000;
 }
 
 a {
@@ -517,6 +518,9 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 	}
 
 	async convertMarkdownToHTML(markdown: string, file: TFile): Promise<string> {
+		// 先在 Markdown 源码层面提取所有图片引用
+		const imageLinks = this.extractImageLinks(markdown);
+		
 		// Create a temporary div to render markdown
 		const tempDiv = document.createElement('div');
 		
@@ -542,7 +546,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		});
 
 		// Process images: convert to base64
-		let html = await this.convertImagesToBase64(tempDiv.innerHTML, file);
+		let html = await this.convertImagesToBase64(tempDiv.innerHTML, file, imageLinks);
 		
 		// Wrap code blocks
 		html = this.wrapCodeBlocks(html);
@@ -738,54 +742,141 @@ document.addEventListener('DOMContentLoaded', function() {
 		return wrapped;
 	}
 
-	async convertImagesToBase64(html: string, file: TFile): Promise<string> {
+	// 从 Markdown 源码中提取所有图片链接
+	extractImageLinks(markdown: string): string[] {
+		const imageLinks: string[] = [];
+		
+		// 匹配 Markdown 图片语法：![alt](src) 或 ![[src]]
+		const markdownImgRegex = /!\[([^\]]*)\]\(([^)]+)\)|!\[\[([^\]]+)\]\]/g;
+		let match;
+		
+		while ((match = markdownImgRegex.exec(markdown)) !== null) {
+			// 匹配 ![alt](src) 格式
+			if (match[2]) {
+				const src = match[2].split('|')[0].split('?')[0]; // 移除尺寸等参数
+				console.log('extractImageLinks - Found image (markdown):', src);
+				imageLinks.push(src);
+			}
+			// 匹配 ![[src]] 格式（Obsidian 内部链接）
+			if (match[3]) {
+				const src = match[3].split('|')[0].split('?')[0];
+				console.log('extractImageLinks - Found image (obsidian):', src);
+				imageLinks.push(src);
+			}
+		}
+		
+		console.log('extractImageLinks - Total images found:', imageLinks.length);
+		return imageLinks;
+	}
+
+	async convertImagesToBase64(html: string, file: TFile, imageLinks: string[] = []): Promise<string> {
 		let processedHtml = html;
+		const processedImages = new Map<string, string>();
+		const processingImages = new Set<string>();
+
+		// 首先处理从 Markdown 中提取的所有图片链接
+		for (const imgSrc of imageLinks) {
+			const cleanSrc = imgSrc.split('?')[0].split('#')[0];
+			
+			// 检查文件后缀名，只处理图片文件
+			const extension = cleanSrc.split('.').pop()?.toLowerCase() || '';
+			const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif', 'heic'];
+			
+			if (!imageExtensions.includes(extension)) {
+				continue; // 跳过非图片文件
+			}
+
+			if (cleanSrc.startsWith('data:')) {
+				continue;
+			}
+
+			try {
+				if (processedImages.has(cleanSrc) || processingImages.has(cleanSrc)) {
+					continue;
+				}
+
+				processingImages.add(cleanSrc);
+				const base64Data = await this.getImageBase64(cleanSrc, file);
+				processingImages.delete(cleanSrc);
+				
+				if (base64Data) {
+					const mimeType = this.getMimeType(base64Data.extension);
+					const dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
+					processedImages.set(cleanSrc, dataUrl);
+				}
+			} catch (error) {
+				console.error('Error processing image from markdown:', cleanSrc, error);
+			}
+		}
 
 		// 处理 <img> 标签
 		const imgRegex = /<img src="([^"]+)"(?: alt="([^"]*)")?(?: title="([^"]*)")?\s*\/?>/g;
-		let imgMatch;
-		const imgMatches: { full: string; src: string; alt: string }[] = [];
-
-		while ((imgMatch = imgRegex.exec(html)) !== null) {
+		
+		const imgMatches: { full: string; src: string; alt: string; index: number }[] = [];
+		let match;
+		
+		while ((match = imgRegex.exec(html)) !== null) {
 			imgMatches.push({
-				full: imgMatch[0],
-				src: imgMatch[1],
-				alt: imgMatch[2] || ''
+				full: match[0],
+				src: match[1],
+				alt: match[2] || '',
+				index: match.index
 			});
 		}
 
-		// 处理所有匹配的图片
+		const replacements: { start: number; end: number; replacement: string }[] = [];
+
 		for (const img of imgMatches) {
-			// Skip if already a data URL
 			if (img.src.startsWith('data:')) {
 				continue;
 			}
 
 			try {
-				const base64Data = await this.getImageBase64(img.src, file);
-				
-				if (base64Data) {
-					const mimeType = this.getMimeType(base64Data.extension);
-					const dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
+				let dataUrl: string | null = null;
+
+				if (processedImages.has(img.src)) {
+					dataUrl = processedImages.get(img.src)!;
+				} else if (processingImages.has(img.src)) {
+					continue;
+				} else {
+					processingImages.add(img.src);
+					const base64Data = await this.getImageBase64(img.src, file);
+					processingImages.delete(img.src);
+					
+					if (base64Data) {
+						const mimeType = this.getMimeType(base64Data.extension);
+						dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
+						processedImages.set(img.src, dataUrl);
+					}
+				}
+
+				if (dataUrl) {
 					const newImgTag = `<img src="${dataUrl}" alt="${img.alt}" />`;
-					processedHtml = processedHtml.replace(img.full, newImgTag);
+					replacements.push({
+						start: img.index,
+						end: img.index + img.full.length,
+						replacement: newImgTag
+					});
 				}
 			} catch (error) {
 				console.error('Error converting image to base64:', error);
 			}
 		}
 
-		// 处理 Obsidian 的 internal-embed span 标签
-		// 匹配所有 class 包含 internal-embed 的 span 标签
-		const embedRegex = /<span[^>]*class="[^"]*internal-embed[^"]*"[^>]*>[\s\S]*?<\/span>/g;
-		let embedMatch;
-		const embedMatches: { full: string; src?: string; alt?: string }[] = [];
+		if (replacements.length > 0) {
+			replacements.sort((a, b) => b.start - a.start);
+			for (const rep of replacements) {
+				processedHtml = processedHtml.substring(0, rep.start) + rep.replacement + processedHtml.substring(rep.end);
+			}
+		}
 
-		// 先收集所有匹配项
-		while ((embedMatch = embedRegex.exec(processedHtml)) !== null) {
-			const fullMatch = embedMatch[0];
-			
-			// 从 span 标签中提取 src 和 alt 属性
+		// 处理 Obsidian 的 internal-embed span 标签
+		const embedRegex = /<span[^>]*class="[^"]*internal-embed[^"]*"[^>]*>[\s\S]*?<\/span>/g;
+		const embedMatches: { full: string; src?: string; alt?: string; index: number }[] = [];
+		
+		const matches = Array.from(processedHtml.matchAll(embedRegex));
+		for (const match of matches) {
+			const fullMatch = match[0];
 			const srcMatch = fullMatch.match(/src="([^"]+)"/);
 			const altMatch = fullMatch.match(/alt="([^"]+)"/);
 			
@@ -793,33 +884,53 @@ document.addEventListener('DOMContentLoaded', function() {
 				embedMatches.push({
 					full: fullMatch,
 					src: srcMatch[1],
-					alt: altMatch ? altMatch[1] : ''
+					alt: altMatch ? altMatch[1] : '',
+					index: match.index
 				});
 			}
 		}
 
-		// 处理所有匹配的图片 - 从后往前替换，避免索引偏移问题
-		for (let i = embedMatches.length - 1; i >= 0; i--) {
-			const embed = embedMatches[i];
-			if (embed.src) {
+		const embedReplacements: { start: number; end: number; replacement: string }[] = [];
+
+		for (const embed of embedMatches) {
+			if (embed.src && !embed.src.startsWith('data:')) {
 				try {
-					const base64Data = await this.getImageBase64(embed.src, file);
-					
-					if (base64Data) {
-						const mimeType = this.getMimeType(base64Data.extension);
-						const dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
-						// 将 span 替换为 img 标签
-						const newImgTag = `<img src="${dataUrl}" alt="${embed.alt || ''}" />`;
+					let dataUrl: string | null = null;
+
+					if (processedImages.has(embed.src)) {
+						dataUrl = processedImages.get(embed.src)!;
+					} else if (processingImages.has(embed.src)) {
+						continue;
+					} else {
+						processingImages.add(embed.src);
+						const base64Data = await this.getImageBase64(embed.src, file);
+						processingImages.delete(embed.src);
 						
-						// 使用 indexOf 和 substring 进行精确替换
-						const startIndex = processedHtml.indexOf(embed.full);
-						if (startIndex !== -1) {
-							processedHtml = processedHtml.substring(0, startIndex) + newImgTag + processedHtml.substring(startIndex + embed.full.length);
+						if (base64Data) {
+							const mimeType = this.getMimeType(base64Data.extension);
+							dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
+							processedImages.set(embed.src, dataUrl);
 						}
+					}
+
+					if (dataUrl) {
+						const newImgTag = `<img src="${dataUrl}" alt="${embed.alt || ''}" />`;
+						embedReplacements.push({
+							start: embed.index,
+							end: embed.index + embed.full.length,
+							replacement: newImgTag
+						});
 					}
 				} catch (error) {
 					console.error('Error converting embed to base64:', error);
 				}
+			}
+		}
+
+		if (embedReplacements.length > 0) {
+			embedReplacements.sort((a, b) => b.start - a.start);
+			for (const rep of embedReplacements) {
+				processedHtml = processedHtml.substring(0, rep.start) + rep.replacement + processedHtml.substring(rep.end);
 			}
 		}
 
@@ -838,15 +949,24 @@ document.addEventListener('DOMContentLoaded', function() {
 		// Remove query parameters and hash
 		const cleanSrc = decodedSrc.split('?')[0].split('#')[0];
 		
+		console.log('getImageBase64 - Trying to find:', cleanSrc);
+		
 		// Try to find the image file
 		let imageFile: TFile | null = null;
 		
 		// Try direct path first using Obsidian's metadata cache
 		imageFile = this.app.metadataCache.getFirstLinkpathDest(cleanSrc, file.path);
 		
+		if (imageFile) {
+			console.log('getImageBase64 - Found via metadataCache (cleanSrc):', imageFile.path);
+		}
+		
 		// If not found, try with original src
 		if (!imageFile) {
 			imageFile = this.app.metadataCache.getFirstLinkpathDest(src, file.path);
+			if (imageFile) {
+				console.log('getImageBase64 - Found via metadataCache (src):', imageFile.path);
+			}
 		}
 
 		// 如果还是找不到，尝试使用相对路径解析
@@ -857,11 +977,22 @@ document.addEventListener('DOMContentLoaded', function() {
 			
 			// 尝试从 vault 中获取文件
 			imageFile = this.app.vault.getAbstractFileByPath(resolvedPath) as TFile;
+			if (imageFile) {
+				console.log('getImageBase64 - Found via relative path:', resolvedPath, imageFile.path);
+			}
 		}
 
 		// 如果还是找不到，尝试直接使用 src 作为路径
 		if (!imageFile) {
 			imageFile = this.app.vault.getAbstractFileByPath(cleanSrc) as TFile;
+			if (imageFile) {
+				console.log('getImageBase64 - Found via direct path:', cleanSrc);
+			}
+		}
+
+		if (!imageFile) {
+			console.warn('getImageBase64 - File not found:', src);
+			return null;
 		}
 
 		if (imageFile && imageFile instanceof TFile && 
@@ -869,16 +1000,33 @@ document.addEventListener('DOMContentLoaded', function() {
 			try {
 				// Read image content
 				const buffer = await this.app.vault.readBinary(imageFile);
-				// Convert buffer to base64
-				const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+				// Convert buffer to base64 using chunked approach to avoid stack overflow
+				const base64 = this.arrayBufferToBase64(buffer);
+				console.log('getImageBase64 - Success:', imageFile.path, 'size:', buffer.byteLength);
 				return { base64, extension: imageFile.extension };
 			} catch (error) {
-				console.error('Error reading image file:', error);
+				console.error('Error reading image file:', imageFile.path, error);
 				return null;
 			}
+		} else {
+			console.warn('getImageBase64 - Not an image file:', imageFile.path, 'extension:', imageFile.extension);
 		}
 
 		return null;
+	}
+
+	// Convert ArrayBuffer to base64 using chunked approach
+	arrayBufferToBase64(buffer: ArrayBuffer): string {
+		const bytes = new Uint8Array(buffer);
+		let base64 = '';
+		const chunkSize = 0x8000; // 32KB chunks to avoid stack overflow
+		
+		for (let i = 0; i < bytes.length; i += chunkSize) {
+			const chunk = bytes.subarray(i, i + chunkSize);
+			base64 += String.fromCharCode.apply(null, chunk as unknown as number[]);
+		}
+		
+		return btoa(base64);
 	}
 
 	getMimeType(extension: string): string {
