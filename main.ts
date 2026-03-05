@@ -7,9 +7,9 @@ body {
 	line-height: 1.5;
 	color: #24292f;
 	background-color: #ffffff;
-	max-width: 980px;
-	margin: 0 auto;
-	padding: 45px;
+	margin: 0;
+	padding: 0;
+	display: flex;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -89,34 +89,55 @@ img {
 
 .table-of-contents {
 	background-color: #f6f8fa;
-	border-radius: 6px;
-	padding: 16px;
-	margin-bottom: 24px;
+	border-radius: 0;
+	padding: 24px;
+	width: 250px;
+	min-height: 100vh;
+	position: fixed;
+	left: 0;
+	top: 0;
+	overflow-y: auto;
+	box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
 .table-of-contents h2 {
 	margin-top: 0;
-	font-size: 1.25em;
-	border-bottom: none;
-	padding-bottom: 0;
+	font-size: 1.4em;
+	border-bottom: 1px solid #d1d5da;
+	padding-bottom: 12px;
+	margin-bottom: 16px;
+	color: #24292f;
 }
 
 .table-of-contents ul {
 	list-style: none;
 	padding-left: 0;
+	margin: 0;
 }
 
 .table-of-contents li {
-	margin-bottom: 0.5em;
+	margin-bottom: 8px;
+	line-height: 1.4;
 }
 
 .table-of-contents a {
 	color: #0969da;
 	text-decoration: none;
+	display: block;
+	padding: 4px 0;
 }
 
 .table-of-contents a:hover {
 	text-decoration: underline;
+	background-color: rgba(9, 105, 218, 0.1);
+	border-radius: 4px;
+}
+
+.content-wrapper {
+	margin-left: 320px;
+	padding: 45px;
+	max-width: 700px;
+	flex: 1;
 }
 `;
 
@@ -232,35 +253,39 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		// Use Obsidian's markdown renderer (static method)
 		await MarkdownRenderer.renderMarkdown(markdown, tempDiv, file.path, this);
 		
-		// Get the rendered HTML
-		let html = tempDiv.innerHTML;
-
 		// Process images: convert to base64
-		const processedHtml = await this.convertImagesToBase64(html, file);
+		let html = await this.convertImagesToBase64(tempDiv.innerHTML, file);
 
-		// Extract headings for table of contents
-		const headings: any[] = [];
-		const headingRegex = /<h([1-6]) id="([^"]+)">([^<]+)<\/h\1>/g;
-		let match;
+		// Re-render to get fresh DOM for heading processing
+		const contentDiv = document.createElement('div');
+		await MarkdownRenderer.renderMarkdown(markdown, contentDiv, file.path, this);
+		
+		// Extract headings and add IDs
+		const headings = contentDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+		const headingsData: any[] = [];
+		
+		headings.forEach((heading, index) => {
+			// Add ID if not present
+			if (!heading.id) {
+				heading.id = `heading-${index}`;
+				heading.setAttribute('id', heading.id);
+			}
+			
+			headingsData.push({
+				level: parseInt(heading.tagName.charAt(1)),
+				id: heading.id,
+				text: heading.textContent || ''
+			});
+		});
 
-		while ((match = headingRegex.exec(processedHtml)) !== null) {
-			const level = parseInt(match[1]);
-			const id = match[2];
-			const text = match[3];
-			headings.push({ level, id, text });
-		}
-
-		// Generate table of contents
+		// Generate table of contents with proper nesting
 		let toc = '<div class="table-of-contents">';
 		toc += `<h2>${this.translate('Table of Contents')}</h2>`;
-		toc += '<ul>';
-		
-		headings.forEach(heading => {
-			const indent = '&nbsp;&nbsp;'.repeat(heading.level - 1);
-			toc += `<li>${indent}<a href="#${heading.id}">${heading.text}</a></li>`;
-		});
-		
-		toc += '</ul></div>';
+		toc += this.generateNestedTOC(headingsData);
+		toc += '</div>';
+
+		// Get the processed HTML with IDs
+		const htmlWithIds = contentDiv.innerHTML;
 
 		// Build full HTML document
 		const fullHTML = `
@@ -274,12 +299,55 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 </head>
 <body>
 	${toc}
-	${processedHtml}
+	<div class="content-wrapper">
+		${htmlWithIds}
+	</div>
 </body>
 </html>
 `;
 
 		return fullHTML;
+	}
+
+	generateNestedTOC(headings: any[]): string {
+		if (headings.length === 0) {
+			return '<ul></ul>';
+		}
+
+		let toc = '<ul>';
+		const stack: number[] = [0]; // 记录当前层级
+
+		for (let i = 0; i < headings.length; i++) {
+			const heading = headings[i];
+			const level = heading.level;
+			
+			// 找到当前标题应该所在的层级
+			while (stack.length > 1 && stack[stack.length - 1] >= level) {
+				toc += '</li></ul>';
+				stack.pop();
+			}
+			
+			// 如果是新层级，添加 ul
+			if (level > stack[stack.length - 1]) {
+				toc += '<ul>';
+				stack.push(level);
+			} else if (i > 0) {
+				// 同一层级，关闭前一个 li
+				toc += '</li>';
+			}
+			
+			// 添加当前标题
+			toc += `<li><a href="#${heading.id}">${heading.text}</a>`;
+		}
+
+		// 关闭所有剩余的标签
+		while (stack.length > 1) {
+			toc += '</li></ul>';
+			stack.pop();
+		}
+		toc += '</li></ul>';
+
+		return toc;
 	}
 
 	async convertImagesToBase64(html: string, file: TFile): Promise<string> {
