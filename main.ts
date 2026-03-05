@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, Menu, Vault, FileSystemAdapter } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, Menu, Vault, FileSystemAdapter, MarkdownRenderer, Component } from 'obsidian';
 
 const GITHUB_CSS = `
 /* GitHub style CSS */
@@ -120,7 +120,7 @@ img {
 }
 `;
 
-export default class ExportHTMLPlugin extends Plugin {
+export default class ExportHTMLPlugin extends Plugin implements Component {
 	async onload() {
 		console.log('Export HTML plugin loaded');
 
@@ -226,27 +226,14 @@ export default class ExportHTMLPlugin extends Plugin {
 	}
 
 	async convertMarkdownToHTML(markdown: string, file: TFile): Promise<string> {
-		// Simple Markdown to HTML conversion
-		let html = markdown;
-
-		// Convert headings
-		html = html.replace(/^#{1} (.*$)/gim, '<h1 id="$1">$1</h1>');
-		html = html.replace(/^#{2} (.*$)/gim, '<h2 id="$1">$1</h2>');
-		html = html.replace(/^#{3} (.*$)/gim, '<h3 id="$1">$1</h3>');
-		html = html.replace(/^#{4} (.*$)/gim, '<h4 id="$1">$1</h4>');
-		html = html.replace(/^#{5} (.*$)/gim, '<h5 id="$1">$1</h5>');
-		html = html.replace(/^#{6} (.*$)/gim, '<h6 id="$1">$1</h6>');
-
-		// Convert bold and italic
-		html = html.replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>');
-		html = html.replace(/\*(.*)\*/gim, '<em>$1</em>');
-
-		// Convert lists
-		html = html.replace(/^\s*\- (.*$)/gim, '<li>$1</li>');
-		html = html.replace(/(<li>.*<\/li>)/, '<ul>$1</ul>');
-
-		// Convert paragraphs
-		html = html.replace(/^(?!<h|<!|\s*\-|\s*\d+\.)(.*$)/gim, '<p>$1</p>');
+		// Create a temporary div to render markdown
+		const tempDiv = document.createElement('div');
+		
+		// Use Obsidian's markdown renderer (static method)
+		await MarkdownRenderer.renderMarkdown(markdown, tempDiv, file.path, this);
+		
+		// Get the rendered HTML
+		let html = tempDiv.innerHTML;
 
 		// Process images: convert to base64
 		const processedHtml = await this.convertImagesToBase64(html, file);
@@ -296,13 +283,16 @@ export default class ExportHTMLPlugin extends Plugin {
 	}
 
 	async convertImagesToBase64(html: string, file: TFile): Promise<string> {
-		const imageRegex = /<img src="([^"]+)" alt="([^"]*)"[^>]*>/g;
 		let processedHtml = html;
-		let match;
 
-		while ((match = imageRegex.exec(html)) !== null) {
-			const src = match[1];
-			const alt = match[2];
+		// 处理 <img> 标签
+		const imgRegex = /<img src="([^"]+)"(?: alt="([^"]*)")?(?: title="([^"]*)")?\s*\/?>/g;
+		let imgMatch;
+
+		while ((imgMatch = imgRegex.exec(html)) !== null) {
+			const fullMatch = imgMatch[0];
+			const src = imgMatch[1];
+			const alt = imgMatch[2] || '';
 
 			// Skip if already a data URL
 			if (src.startsWith('data:')) {
@@ -310,25 +300,108 @@ export default class ExportHTMLPlugin extends Plugin {
 			}
 
 			try {
-				// Resolve image path
-				const imageFile = this.app.metadataCache.getFirstLinkpathDest(src, file.path);
-				if (imageFile) {
-					// Read image content
-					const buffer = await this.app.vault.readBinary(imageFile);
-					// Convert buffer to base64 without using Buffer.from
-					const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-					const mimeType = this.getMimeType(imageFile.extension);
-					const dataUrl = `data:${mimeType};base64,${base64}`;
-
-					// Replace image src with data URL
-					processedHtml = processedHtml.replace(src, dataUrl);
+				const base64Data = await this.getImageBase64(src, file);
+				
+				if (base64Data) {
+					const mimeType = this.getMimeType(base64Data.extension);
+					const dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
+					const newImgTag = `<img src="${dataUrl}" alt="${alt}" />`;
+					processedHtml = processedHtml.replace(fullMatch, newImgTag);
 				}
 			} catch (error) {
 				console.error('Error converting image to base64:', error);
 			}
 		}
 
+		// 处理 Obsidian 的 internal-embed span 标签
+		// 匹配所有 class 包含 internal-embed 的 span 标签
+		const embedRegex = /<span[^>]*class="[^"]*internal-embed[^"]*"[^>]*>/g;
+		let embedMatch;
+		const embedMatches: { full: string; src?: string; alt?: string }[] = [];
+
+		// 先收集所有匹配项
+		while ((embedMatch = embedRegex.exec(processedHtml)) !== null) {
+			const fullMatch = embedMatch[0];
+			
+			// 从 span 标签中提取 src 和 alt 属性
+			const srcMatch = fullMatch.match(/src="([^"]+)"/);
+			const altMatch = fullMatch.match(/alt="([^"]+)"/);
+			
+			if (srcMatch) {
+				embedMatches.push({
+					full: fullMatch,
+					src: srcMatch[1],
+					alt: altMatch ? altMatch[1] : ''
+				});
+			}
+		}
+
+		// 处理所有匹配的图片
+		for (const embed of embedMatches) {
+			if (embed.src) {
+				try {
+					const base64Data = await this.getImageBase64(embed.src, file);
+					
+					if (base64Data) {
+						const mimeType = this.getMimeType(base64Data.extension);
+						const dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
+						// 将 span 替换为 img 标签
+						const newImgTag = `<img src="${dataUrl}" alt="${embed.alt || ''}" />`;
+						processedHtml = processedHtml.replace(embed.full, newImgTag);
+					}
+				} catch (error) {
+					console.error('Error converting embed to base64:', error);
+				}
+			}
+		}
+
 		return processedHtml;
+	}
+
+	async getImageBase64(src: string, file: TFile): Promise<{ base64: string; extension: string } | null> {
+		// Skip if already a data URL
+		if (src.startsWith('data:')) {
+			return null;
+		}
+
+		// Handle Obsidian internal links (decode URI component)
+		const decodedSrc = decodeURIComponent(src);
+		
+		// Try to find the image file
+		let imageFile: TFile | null = null;
+		
+		// Try direct path first
+		imageFile = this.app.metadataCache.getFirstLinkpathDest(decodedSrc, file.path);
+		
+		// If not found, try without the decoded part
+		if (!imageFile) {
+			const simpleSrc = decodedSrc.split('?')[0];
+			imageFile = this.app.metadataCache.getFirstLinkpathDest(simpleSrc, file.path);
+		}
+
+		// 如果还是找不到，尝试使用相对路径解析
+		if (!imageFile) {
+			const path = require('path');
+			const fileDir = path.dirname(file.path);
+			const resolvedPath = path.normalize(path.join(fileDir, src));
+			
+			// 尝试从 vault 中获取文件
+			try {
+				imageFile = this.app.vault.getAbstractFileByPath(resolvedPath) as TFile;
+			} catch (e) {
+				// 忽略错误
+			}
+		}
+
+		if (imageFile && ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(imageFile.extension.toLowerCase())) {
+			// Read image content
+			const buffer = await this.app.vault.readBinary(imageFile);
+			// Convert buffer to base64
+			const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+			return { base64, extension: imageFile.extension };
+		}
+
+		return null;
 	}
 
 	getMimeType(extension: string): string {
