@@ -162,12 +162,12 @@ pre code {
 }
 
 blockquote {
-	border-left: 4px solid #0969da;
-	background: #f6f8fa;
-	color: #24292f;
+	border-left: 4px solid #636e72;
+	background: #f9f9f9;
+	color: #2d3436;
 	padding: 12px 16px;
 	margin: 0 0 16px 0;
-	border-radius: 6px;
+	border-radius: 4px;
 	line-height: 1.6;
 }
 
