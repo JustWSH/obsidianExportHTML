@@ -412,9 +412,23 @@ table tr:hover {
 }
 `;
 
+interface ExportHTMLPluginSettings {
+	autoOpenFolder: boolean;
+}
+
+const DEFAULT_SETTINGS: ExportHTMLPluginSettings = {
+	autoOpenFolder: true
+};
+
 export default class ExportHTMLPlugin extends Plugin implements Component {
+	settings: ExportHTMLPluginSettings;
+
 	async onload() {
 		console.log('Export HTML plugin loaded');
+		
+		await this.loadSettings();
+		
+		this.addSettingTab(new ExportHTMLSettingTab(this.app, this));
 
 		// Add right-click menu item
 		this.addCommand({
@@ -477,6 +491,16 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 				'zh-CN': '目录',
 				'zh': '目录',
 				en: 'Table of Contents'
+			},
+			'Auto-open folder after export': {
+				'zh-CN': '导出后自动打开文件夹',
+				'zh': '导出后自动打开文件夹',
+				en: 'Auto-open folder after export'
+			},
+			'Automatically open the folder containing the exported HTML file after successful export': {
+				'zh-CN': '导出成功后自动打开包含导出 HTML 文件的文件夹',
+				'zh': '导出成功后自动打开包含导出 HTML 文件的文件夹',
+				en: 'Automatically open the folder containing the exported HTML file after successful export'
 			}
 		};
 		const translation = translations[key];
@@ -515,6 +539,14 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 				const fs = require('fs/promises');
 				await fs.writeFile(filePath, htmlContent, 'utf-8');
 				new Notice(`${this.translate('HTML exported successfully')}: ${filePath}`);
+				
+				// Auto-open folder if setting is enabled
+				if (this.settings.autoOpenFolder) {
+					const path = require('path');
+					const folderPath = path.dirname(filePath);
+					const { shell } = require('electron');
+					shell.openPath(folderPath);
+				}
 			}
 		} catch (error) {
 			console.error('Error exporting HTML:', error);
@@ -1025,5 +1057,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
 	onunload() {
 		console.log('Export HTML plugin unloaded');
+	}
+
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
+	}
+}
+
+class ExportHTMLSettingTab extends PluginSettingTab {
+	plugin: ExportHTMLPlugin;
+
+	constructor(app: App, plugin: ExportHTMLPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const { containerEl } = this;
+
+		containerEl.empty();
+
+		new Setting(containerEl)
+			.setName(this.plugin.translate('Auto-open folder after export'))
+			.setDesc(this.plugin.translate('Automatically open the folder containing the exported HTML file after successful export'))
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.autoOpenFolder)
+				.onChange(async (value) => {
+					this.plugin.settings.autoOpenFolder = value;
+					await this.plugin.saveSettings();
+				}));
 	}
 }
