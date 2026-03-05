@@ -308,7 +308,6 @@ a:hover {
 .content-wrapper {
 	margin-left: 320px;
 	padding: 32px;
-	max-width: 800px;
 	flex: 1;
 	background: #ffffff;
 	transition: margin-left 0.1s ease;
