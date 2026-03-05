@@ -754,18 +754,15 @@ document.addEventListener('DOMContentLoaded', function() {
 			// 匹配 ![alt](src) 格式
 			if (match[2]) {
 				const src = match[2].split('|')[0].split('?')[0]; // 移除尺寸等参数
-				console.log('extractImageLinks - Found image (markdown):', src);
 				imageLinks.push(src);
 			}
 			// 匹配 ![[src]] 格式（Obsidian 内部链接）
 			if (match[3]) {
 				const src = match[3].split('|')[0].split('?')[0];
-				console.log('extractImageLinks - Found image (obsidian):', src);
 				imageLinks.push(src);
 			}
 		}
 		
-		console.log('extractImageLinks - Total images found:', imageLinks.length);
 		return imageLinks;
 	}
 
@@ -805,7 +802,7 @@ document.addEventListener('DOMContentLoaded', function() {
 					processedImages.set(cleanSrc, dataUrl);
 				}
 			} catch (error) {
-				console.error('Error processing image from markdown:', cleanSrc, error);
+				// Silently fail for non-image files
 			}
 		}
 
@@ -859,7 +856,7 @@ document.addEventListener('DOMContentLoaded', function() {
 					});
 				}
 			} catch (error) {
-				console.error('Error converting image to base64:', error);
+				// Silently fail
 			}
 		}
 
@@ -922,7 +919,7 @@ document.addEventListener('DOMContentLoaded', function() {
 						});
 					}
 				} catch (error) {
-					console.error('Error converting embed to base64:', error);
+					// Silently fail
 				}
 			}
 		}
@@ -949,24 +946,15 @@ document.addEventListener('DOMContentLoaded', function() {
 		// Remove query parameters and hash
 		const cleanSrc = decodedSrc.split('?')[0].split('#')[0];
 		
-		console.log('getImageBase64 - Trying to find:', cleanSrc);
-		
 		// Try to find the image file
 		let imageFile: TFile | null = null;
 		
 		// Try direct path first using Obsidian's metadata cache
 		imageFile = this.app.metadataCache.getFirstLinkpathDest(cleanSrc, file.path);
 		
-		if (imageFile) {
-			console.log('getImageBase64 - Found via metadataCache (cleanSrc):', imageFile.path);
-		}
-		
 		// If not found, try with original src
 		if (!imageFile) {
 			imageFile = this.app.metadataCache.getFirstLinkpathDest(src, file.path);
-			if (imageFile) {
-				console.log('getImageBase64 - Found via metadataCache (src):', imageFile.path);
-			}
 		}
 
 		// 如果还是找不到，尝试使用相对路径解析
@@ -977,21 +965,14 @@ document.addEventListener('DOMContentLoaded', function() {
 			
 			// 尝试从 vault 中获取文件
 			imageFile = this.app.vault.getAbstractFileByPath(resolvedPath) as TFile;
-			if (imageFile) {
-				console.log('getImageBase64 - Found via relative path:', resolvedPath, imageFile.path);
-			}
 		}
 
 		// 如果还是找不到，尝试直接使用 src 作为路径
 		if (!imageFile) {
 			imageFile = this.app.vault.getAbstractFileByPath(cleanSrc) as TFile;
-			if (imageFile) {
-				console.log('getImageBase64 - Found via direct path:', cleanSrc);
-			}
 		}
 
 		if (!imageFile) {
-			console.warn('getImageBase64 - File not found:', src);
 			return null;
 		}
 
@@ -1002,14 +983,10 @@ document.addEventListener('DOMContentLoaded', function() {
 				const buffer = await this.app.vault.readBinary(imageFile);
 				// Convert buffer to base64 using chunked approach to avoid stack overflow
 				const base64 = this.arrayBufferToBase64(buffer);
-				console.log('getImageBase64 - Success:', imageFile.path, 'size:', buffer.byteLength);
 				return { base64, extension: imageFile.extension };
 			} catch (error) {
-				console.error('Error reading image file:', imageFile.path, error);
 				return null;
 			}
-		} else {
-			console.warn('getImageBase64 - Not an image file:', imageFile.path, 'extension:', imageFile.extension);
 		}
 
 		return null;
