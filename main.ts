@@ -239,11 +239,12 @@ a:hover {
 	width: 320px;
 	min-width: 200px;
 	max-width: 800px;
-	min-height: 100vh;
+	height: 100vh;
 	position: fixed;
 	left: 0;
 	top: 0;
-	overflow: auto;
+	overflow-y: auto;
+	overflow-x: hidden;
 	box-shadow: 1px 0 0 #d0d7de inset;
 	border-right: 1px solid #d0d7de;
 	scroll-behavior: smooth;
