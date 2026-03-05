@@ -1,15 +1,20 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, Menu, Vault, FileSystemAdapter, MarkdownRenderer, Component } from 'obsidian';
 
 const GITHUB_CSS = `
-/* GitHub style CSS */
+/* Professional GitHub Style CSS */
+* {
+	box-sizing: border-box;
+}
+
 body {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-	line-height: 1.5;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+	line-height: 1.7;
 	color: #24292f;
-	background-color: #ffffff;
+	background: #ffffff;
 	margin: 0;
 	padding: 0;
 	display: flex;
+	min-height: 100vh;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -17,17 +22,23 @@ h1, h2, h3, h4, h5, h6 {
 	line-height: 1.25;
 	margin-top: 24px;
 	margin-bottom: 16px;
+	color: #24292f;
+}
+
+h1:hover, h2:hover, h3:hover, h4:hover, h5:hover, h6:hover {
+	color: #0969da;
 }
 
 h1 {
 	font-size: 2em;
-	border-bottom: 1px solid #eaecef;
+	border-bottom: 1px solid #d0d7de;
 	padding-bottom: 0.3em;
+	margin-top: 0;
 }
 
 h2 {
 	font-size: 1.5em;
-	border-bottom: 1px solid #eaecef;
+	border-bottom: 1px solid #d0d7de;
 	padding-bottom: 0.3em;
 }
 
@@ -37,6 +48,15 @@ h3 {
 
 h4 {
 	font-size: 1em;
+}
+
+h5 {
+	font-size: 0.875em;
+}
+
+h6 {
+	font-size: 0.85em;
+	color: #656d76;
 }
 
 p {
@@ -51,20 +71,30 @@ ul, ol {
 }
 
 li {
-	margin-bottom: 0.5em;
+	margin-bottom: 4px;
+}
+
+ul li::marker {
+	color: #0969da;
+}
+
+ol li::marker {
+	color: #0969da;
 }
 
 code {
-	background-color: rgba(175, 184, 193, 0.2);
+	background-color: #f6f8fa;
 	border-radius: 6px;
 	font-size: 85%;
 	margin: 0;
 	padding: 0.2em 0.4em;
 	font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+	color: #24292f;
+	border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 pre {
-	background-color: #f6f8fa;
+	background-color: #0d1117;
 	border-radius: 6px;
 	font-size: 85%;
 	line-height: 1.45;
@@ -72,72 +102,271 @@ pre {
 	padding: 16px;
 	margin-top: 0;
 	margin-bottom: 16px;
+	position: relative;
+}
+
+.code-block-wrapper pre {
+	position: relative;
+}
+
+pre code {
+	background: transparent;
+	color: #c9d1d9;
+	padding: 0;
+	border: none;
+	font-size: inherit;
+	display: block;
+}
+
+.code-block-wrapper {
+	position: relative;
+	margin-bottom: 16px;
+}
+
+.copy-button, .copy-code-button {
+	position: absolute !important;
+	top: 8px !important;
+	right: 8px !important;
+	padding: 4px 8px;
+	background-color: rgba(255, 255, 255, 0.1);
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	border-radius: 6px;
+	color: #c9d1d9;
+	font-size: 12px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.copy-button:hover, .copy-code-button:hover {
+	background-color: rgba(255, 255, 255, 0.2);
+	border-color: rgba(255, 255, 255, 0.4);
+}
+
+.copy-button.copied, .copy-code-button.copied {
+	background-color: #3fb950;
+	border-color: #3fb950;
+	color: #ffffff;
+}
+
+.copy-button svg, .copy-code-button svg {
+	width: 16px;
+	height: 16px;
+}
+
+.copy-button span, .copy-code-button span {
+	font-size: 12px;
 }
 
 blockquote {
-	border-left: 4px solid #d1d5da;
-	color: #6a737d;
-	padding: 0 1em;
+	border-left: 4px solid #d0d7de;
+	background: #f6f8fa;
+	color: #24292f;
+	padding: 0 16px;
 	margin: 0 0 16px 0;
+}
+
+blockquote p:last-child {
+	margin-bottom: 0;
 }
 
 img {
 	max-width: 100%;
 	box-sizing: content-box;
 	background-color: #ffffff;
+	border-radius: 6px;
+	margin: 0;
+}
+
+a {
+	color: #0969da;
+	text-decoration: none;
+	transition: color 0.2s ease;
+}
+
+a:hover {
+	color: #0550ae;
+	text-decoration: underline;
 }
 
 .table-of-contents {
-	background-color: #f6f8fa;
-	border-radius: 0;
+	background: #f6f8fa;
 	padding: 24px;
-	width: 250px;
+	width: 320px;
+	min-width: 280px;
+	max-width: 600px;
 	min-height: 100vh;
 	position: fixed;
 	left: 0;
 	top: 0;
-	overflow-y: auto;
-	box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+	overflow: auto;
+	box-shadow: 1px 0 0 #d0d7de inset;
+	border-right: 1px solid #d0d7de;
+	scroll-behavior: smooth;
+	resize: horizontal;
+}
+
+.table-of-contents::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+.table-of-contents::-webkit-scrollbar-track {
+	background: #f6f8fa;
+}
+
+.table-of-contents::-webkit-scrollbar-thumb {
+	background: #8c959f;
+	border-radius: 4px;
+}
+
+.table-of-contents::-webkit-scrollbar-thumb:hover {
+	background: #6e7681;
 }
 
 .table-of-contents h2 {
 	margin-top: 0;
-	font-size: 1.4em;
-	border-bottom: 1px solid #d1d5da;
-	padding-bottom: 12px;
+	font-size: 1.25em;
+	border-bottom: 1px solid #d0d7de;
+	padding-bottom: 0.3em;
 	margin-bottom: 16px;
 	color: #24292f;
+	font-weight: 600;
 }
 
 .table-of-contents ul {
 	list-style: none;
 	padding-left: 0;
 	margin: 0;
+	white-space: nowrap;
 }
 
 .table-of-contents li {
 	margin-bottom: 8px;
-	line-height: 1.4;
+	line-height: 1.5;
+}
+
+.table-of-contents ul ul {
+	margin-top: 4px;
+	padding-left: 16px;
+	border-left: 2px solid #d0d7de;
+	margin-left: 8px;
 }
 
 .table-of-contents a {
-	color: #0969da;
+	color: #24292f;
 	text-decoration: none;
 	display: block;
-	padding: 4px 0;
+	padding: 4px 8px;
+	border-radius: 6px;
+	font-size: 0.9em;
+	transition: all 0.2s ease;
 }
 
 .table-of-contents a:hover {
-	text-decoration: underline;
-	background-color: rgba(9, 105, 218, 0.1);
-	border-radius: 4px;
+	color: #0969da;
+	background: #ffffff;
+	text-decoration: none;
 }
 
 .content-wrapper {
-	margin-left: 320px;
-	padding: 45px;
-	max-width: 700px;
+	margin-left: 280px;
+	padding: 32px 48px;
+	max-width: 800px;
 	flex: 1;
+	background: #ffffff;
+}
+
+.content-wrapper > *:first-child {
+	margin-top: 0;
+}
+
+.content-wrapper > *:last-child {
+	margin-bottom: 0;
+}
+
+hr {
+	border: none;
+	border-top: 1px solid #d0d7de;
+	margin: 24px 0;
+}
+
+table {
+	border-collapse: collapse;
+	width: 100%;
+	margin: 0 0 16px 0;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+table th {
+	background: #f6f8fa;
+	color: #24292f;
+	padding: 8px 12px;
+	text-align: left;
+	font-weight: 600;
+	border: 1px solid #d0d7de;
+}
+
+table td {
+	padding: 8px 12px;
+	border: 1px solid #d0d7de;
+}
+
+table tr:nth-child(even) {
+	background-color: #f6f8fa;
+}
+
+table tr:hover {
+	background-color: #f3f4f6;
+}
+
+@media (max-width: 768px) {
+	.table-of-contents {
+		width: 100%;
+		position: relative;
+		min-height: auto;
+		border-right: none;
+		border-bottom: 1px solid #d0d7de;
+	}
+	
+	.content-wrapper {
+		margin-left: 0;
+		padding: 24px;
+	}
+	
+	body {
+		flex-direction: column;
+	}
+}
+
+@page {
+	margin: 2cm;
+}
+
+@media print {
+	.table-of-contents {
+		position: static;
+		width: 100%;
+		padding: 20px;
+	}
+	
+	.content-wrapper {
+		margin-left: 0;
+		padding: 20px;
+		max-width: none;
+	}
+	
+	body {
+		background: #ffffff;
+	}
+	
+	.copy-button {
+		display: none;
+	}
 }
 `;
 
@@ -284,8 +513,65 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		toc += this.generateNestedTOC(headingsData);
 		toc += '</div>';
 
-		// Get the processed HTML with IDs
-		const htmlWithIds = contentDiv.innerHTML;
+		// Get the processed HTML with IDs and wrap code blocks
+		let htmlWithIds = this.wrapCodeBlocks(contentDiv.innerHTML);
+
+		// JavaScript for copy functionality
+		const copyScript = `
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	const copyButtons = document.querySelectorAll('.copy-button, .copy-code-button');
+	
+	copyButtons.forEach(button => {
+		button.addEventListener('click', function(e) {
+			e.preventDefault();
+			e.stopPropagation();
+			
+			const wrapper = this.closest('.code-block-wrapper');
+			if (!wrapper) return;
+			
+			const pre = wrapper.querySelector('pre');
+			const code = pre.querySelector('code');
+			if (!code) return;
+			
+			const textToCopy = code.textContent;
+			
+			navigator.clipboard.writeText(textToCopy).then(() => {
+				const originalHTML = this.innerHTML;
+				this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
+				this.classList.add('copied');
+				
+				setTimeout(() => {
+					this.innerHTML = originalHTML;
+					this.classList.remove('copied');
+				}, 2000);
+			}).catch(err => {
+				const textArea = document.createElement('textarea');
+				textArea.value = textToCopy;
+				textArea.style.position = 'fixed';
+				textArea.style.left = '-999999px';
+				document.body.appendChild(textArea);
+				textArea.select();
+				try {
+					document.execCommand('copy');
+					const originalHTML = this.innerHTML;
+					this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
+					this.classList.add('copied');
+					
+					setTimeout(() => {
+						this.innerHTML = originalHTML;
+						this.classList.remove('copied');
+					}, 2000);
+				} catch (err) {
+					console.error('Failed to copy:', err);
+				}
+				document.body.removeChild(textArea);
+			});
+		});
+	});
+});
+</script>
+`;
 
 		// Build full HTML document
 		const fullHTML = `
@@ -302,6 +588,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 	<div class="content-wrapper">
 		${htmlWithIds}
 	</div>
+	${copyScript}
 </body>
 </html>
 `;
@@ -348,6 +635,16 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		toc += '</li></ul>';
 
 		return toc;
+	}
+
+	wrapCodeBlocks(html: string): string {
+		// Wrap pre tags with code-block-wrapper
+		// Match both simple and complex pre structures
+		const wrapped = html.replace(
+			/<pre([^>]*)>([\s\S]*?)<\/pre>/g,
+			`<div class="code-block-wrapper"><pre$1>$2</pre></div>`
+		);
+		return wrapped;
 	}
 
 	async convertImagesToBase64(html: string, file: TFile): Promise<string> {
