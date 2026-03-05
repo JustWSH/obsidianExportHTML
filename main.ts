@@ -196,8 +196,8 @@ a:hover {
 	background: #f6f8fa;
 	padding: 24px;
 	width: 320px;
-	min-width: 280px;
-	max-width: 600px;
+	min-width: 200px;
+	max-width: 800px;
 	min-height: 100vh;
 	position: fixed;
 	left: 0;
@@ -206,7 +206,7 @@ a:hover {
 	box-shadow: 1px 0 0 #d0d7de inset;
 	border-right: 1px solid #d0d7de;
 	scroll-behavior: smooth;
-	resize: horizontal;
+	z-index: 100;
 }
 
 .table-of-contents::-webkit-scrollbar {
@@ -272,12 +272,46 @@ a:hover {
 	text-decoration: none;
 }
 
+.resize-handle {
+	position: fixed;
+	top: 0;
+	left: 320px;
+	width: 8px;
+	height: 100vh;
+	cursor: col-resize;
+	z-index: 101;
+	transition: background-color 0.2s ease;
+}
+
+.resize-handle:hover,
+.resize-handle.resizing {
+	background-color: rgba(9, 105, 218, 0.3);
+}
+
+.resize-handle::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 2px;
+	height: 40px;
+	background-color: #d0d7de;
+	border-radius: 2px;
+}
+
+.resize-handle:hover::after,
+.resize-handle.resizing::after {
+	background-color: #0969da;
+}
+
 .content-wrapper {
-	margin-left: 280px;
+	margin-left: 320px;
 	padding: 32px 48px;
 	max-width: 800px;
 	flex: 1;
 	background: #ffffff;
+	transition: margin-left 0.1s ease;
 }
 
 .content-wrapper > *:first-child {
@@ -333,6 +367,10 @@ table tr:hover {
 		border-bottom: 1px solid #d0d7de;
 	}
 	
+	.resize-handle {
+		display: none;
+	}
+	
 	.content-wrapper {
 		margin-left: 0;
 		padding: 24px;
@@ -352,6 +390,10 @@ table tr:hover {
 		position: static;
 		width: 100%;
 		padding: 20px;
+	}
+	
+	.resize-handle {
+		display: none;
 	}
 	
 	.content-wrapper {
@@ -573,6 +615,52 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 `;
 
+		// JavaScript for resize functionality
+		const resizeScript = `
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	const toc = document.querySelector('.table-of-contents');
+	const contentWrapper = document.querySelector('.content-wrapper');
+	const resizeHandle = document.querySelector('.resize-handle');
+	
+	if (!toc || !contentWrapper || !resizeHandle) return;
+	
+	let isResizing = false;
+	
+	resizeHandle.addEventListener('mousedown', function(e) {
+		isResizing = true;
+		resizeHandle.classList.add('resizing');
+		document.body.style.cursor = 'col-resize';
+		document.body.style.userSelect = 'none';
+		e.preventDefault();
+	});
+	
+	document.addEventListener('mousemove', function(e) {
+		if (!isResizing) return;
+		
+		const newWidth = e.clientX;
+		const min = 200;
+		const max = 800;
+		
+		if (newWidth >= min && newWidth <= max) {
+			toc.style.width = newWidth + 'px';
+			contentWrapper.style.marginLeft = newWidth + 'px';
+			resizeHandle.style.left = newWidth + 'px';
+		}
+	});
+	
+	document.addEventListener('mouseup', function() {
+		if (isResizing) {
+			isResizing = false;
+			resizeHandle.classList.remove('resizing');
+			document.body.style.cursor = '';
+			document.body.style.userSelect = '';
+		}
+	});
+});
+</script>
+`;
+
 		// Build full HTML document
 		const fullHTML = `
 <!DOCTYPE html>
@@ -585,10 +673,12 @@ document.addEventListener('DOMContentLoaded', function() {
 </head>
 <body>
 	${toc}
+	<div class="resize-handle"></div>
 	<div class="content-wrapper">
 		${htmlWithIds}
 	</div>
 	${copyScript}
+	${resizeScript}
 </body>
 </html>
 `;
