@@ -1,7 +1,7 @@
 {
 	"id": "my-export-html",
 	"name": "My Export To HTML",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"minAppVersion": "0.15.0",
 	"description": "Export Obsidian notes to beautiful HTML files.",
 	"author": "almoost",
