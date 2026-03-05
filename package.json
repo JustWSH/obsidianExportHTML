@@ -1,6 +1,6 @@
 {
-	"name": "obsidian-export-html",
-	"version": "1.0.0",
+	"name": "my-export-html",
+	"version": "1.0.1",
 	"description": "Export Obsidian notes to beautiful HTML files with GitHub style.",
 	"main": "main.js",
 	"scripts": {
@@ -8,7 +8,7 @@
 		"build": "esbuild main.ts --bundle --target=es2018 --external:obsidian --external:electron --platform=node --format=cjs --outfile=main.js"
 	},
 	"keywords": ["obsidian", "plugin", "export", "html"],
-	"author": "Your Name",
+	"author": "almoost",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
