@@ -451,26 +451,31 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 	}
 
 	translate(key: string): string {
-		const locale = (this.app.vault as any).getConfig('locale') || 'en';
+		const locale = localStorage.getItem('language') || 'en';
 		const translations: { [key: string]: { [lang: string]: string } } = {
 			'Export to HTML...': {
-				'zh-CN': '导出为HTML...',
+				'zh-CN': '导出为 HTML...',
+				'zh': '导出为 HTML...',
 				en: 'Export to HTML...'
 			},
 			'Exporting': {
 				'zh-CN': '正在导出',
+				'zh': '正在导出',
 				en: 'Exporting'
 			},
 			'Failed to export HTML': {
-				'zh-CN': '导出HTML失败',
+				'zh-CN': '导出 HTML 失败',
+				'zh': '导出 HTML 失败',
 				en: 'Failed to export HTML'
 			},
 			'HTML exported successfully': {
-				'zh-CN': 'HTML导出成功',
+				'zh-CN': 'HTML 导出成功',
+				'zh': 'HTML 导出成功',
 				en: 'HTML exported successfully'
 			},
 			'Table of Contents': {
 				'zh-CN': '目录',
+				'zh': '目录',
 				en: 'Table of Contents'
 			}
 		};
