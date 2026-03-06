@@ -121,13 +121,14 @@ pre {
 .code-block-wrapper pre {
 	position: relative;
 	overflow-x: auto;
-	overflow-y: auto;
+	overflow-y: scroll;
 	margin: 0;
 	border-radius: 0;
 	border: none;
 	box-shadow: none;
 	padding: 20px 16px 20px 64px;
 	background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+	min-height: 60px;
 }
 
 pre code {
@@ -141,6 +142,7 @@ pre code {
 	word-wrap: normal;
 	overflow-x: auto;
 	font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+	line-height: 1.6;
 }
 
 .code-block-wrapper .line-numbers {
@@ -166,10 +168,11 @@ pre code {
 .code-block-wrapper .line-numbers span {
 	display: block;
 	padding-right: 8px;
+	height: 22.4px;
 }
 
 .code-block-wrapper pre::-webkit-scrollbar {
-	width: 6px;
+	width: 0px;
 	height: 6px;
 }
 
@@ -188,6 +191,10 @@ pre code {
 
 .code-block-wrapper pre::-webkit-scrollbar-corner {
 	background: transparent;
+}
+
+.code-block-wrapper pre:hover::-webkit-scrollbar {
+	width: 6px;
 }
 
 .copy-button, .copy-code-button {
@@ -905,10 +912,30 @@ document.addEventListener('DOMContentLoaded', function() {
 		const wrapped = html.replace(
 			/<pre([^>]*)>([\s\S]*?)<\/pre>/g,
 			(match, attributes, content) => {
+				// 计算行数：从 content 中提取实际的文本行
+				// 先移除 HTML 标签，只保留文本内容
+				const textContent = content.replace(/<[^>]*>/g, '');
+				// 解码 HTML 实体
+				const decoded = textContent
+					.replace(/&lt;/g, '<')
+					.replace(/&gt;/g, '>')
+					.replace(/&amp;/g, '&')
+					.replace(/&quot;/g, '"')
+					.replace(/&#39;/g, "'");
+				
+				// 移除末尾的换行符
+				const trimmed = decoded.replace(/\n+$/, '');
+				
+				// 如果内容为空，行数为 0
+				if (trimmed === '') {
+					return `<div class="code-block-wrapper"><div class="line-numbers"></div><pre${attributes}>${content}</pre></div>`;
+				}
+				
 				// 计算行数
-				const lines = content.split('\n').length;
+				const lineCount = trimmed.split('\n').length;
+				
 				let lineNumbers = '';
-				for (let i = 1; i <= lines; i++) {
+				for (let i = 1; i <= lineCount; i++) {
 					lineNumbers += `<span>${i}</span>`;
 				}
 				
