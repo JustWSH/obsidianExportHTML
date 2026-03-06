@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, Menu, Vault, FileSystemAdapter, MarkdownRenderer, Component } from 'obsidian';
+import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, Menu, FileSystemAdapter, MarkdownRenderer } from 'obsidian';
 import { KATEX_JS_BASE64, KATEX_CSS_BASE64 } from './katex-constants';
 
 /**
@@ -545,14 +545,25 @@ table tr:hover {
  */
 interface ExportHTMLPluginSettings {
 	autoOpenFolder: boolean;
+	exportPath: string;
 }
 
 /**
  * 默认设置
  */
 const DEFAULT_SETTINGS: ExportHTMLPluginSettings = {
-	autoOpenFolder: true
+	autoOpenFolder: true,
+	exportPath: ''
 };
+
+/**
+ * 标题信息接口
+ */
+interface HeadingInfo {
+	level: number;
+	id: string;
+	text: string;
+}
 
 /**
  * 翻译词典
@@ -599,15 +610,13 @@ const TRANSLATIONS: { [key: string]: { [lang: string]: string } } = {
 /**
  * 主插件类
  */
-export default class ExportHTMLPlugin extends Plugin implements Component {
+export default class ExportHTMLPlugin extends Plugin {
 	settings: ExportHTMLPluginSettings;
 
 	/**
 	 * 插件加载时执行
 	 */
 	async onload() {
-		console.log('Export HTML plugin loaded');
-		
 		await this.loadSettings();
 		
 		this.addSettingTab(new ExportHTMLSettingTab(this.app, this));
@@ -637,7 +646,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 						item
 							.setTitle(this.translate('Export to HTML...'))
 							.setIcon('download')
-							.onClick(async () => {
+							.onClick(() => {
 								this.exportToHTML(file);
 							});
 					});
@@ -650,7 +659,6 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 	 * 插件卸载时执行
 	 */
 	onunload() {
-		console.log('Export HTML plugin unloaded');
 	}
 
 	/**
@@ -659,7 +667,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 	 * @returns 翻译后的文本
 	 */
 	translate(key: string): string {
-		const locale = localStorage.getItem('language') || 'en';
+		const locale = navigator.language || 'en';
 		const translation = TRANSLATIONS[key];
 		return translation?.[locale] || translation?.en || key;
 	}
@@ -687,8 +695,9 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 			const content = await this.app.vault.read(file);
 			const htmlContent = await this.convertMarkdownToHTML(content, file);
 			
-			const electron = require('electron');
-			const path = require('path');
+			// 使用 Electron API 保存文件
+			const electron = (window as any).require('electron');
+			const path = (window as any).require('path');
 			const adapter = this.app.vault.adapter as FileSystemAdapter;
 			const basePath = adapter.getBasePath();
 			
@@ -708,19 +717,17 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 			});
 
 			if (!canceled && filePath) {
-				const fs = require('fs/promises');
+				const fs = (window as any).require('fs/promises');
 				await fs.writeFile(filePath, htmlContent, 'utf-8');
 				new Notice(`${this.translate('HTML exported successfully')}: ${filePath}`);
 				
 				if (this.settings.autoOpenFolder) {
-					const path = require('path');
 					const folderPath = path.dirname(filePath);
-					const { shell } = require('electron');
+					const { shell } = electron;
 					shell.openPath(folderPath);
 				}
 			}
 		} catch (error) {
-			console.error('Error exporting HTML:', error);
 			new Notice(this.translate('Failed to export HTML'));
 		}
 	}
@@ -765,7 +772,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		}
 		
 		const tempDiv = document.createElement('div');
-		await MarkdownRenderer.renderMarkdown(protectedMarkdown, tempDiv, file.path, this);
+		await MarkdownRenderer.render(this.app, protectedMarkdown, tempDiv, file.path, this);
 		
 		if (hasMath) {
 			let html = tempDiv.innerHTML;
@@ -781,7 +788,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 					} else if (latex.startsWith('\\[')) {
 						pureLatex = latex.slice(2, -2);
 					}
-					const escapedBlock = blockPlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+					const escapedBlock = blockPlaceholder.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 					const regex = new RegExp(escapedBlock, 'g');
 					html = html.replace(regex, `<div class="math-display">${pureLatex}</div>`);
 				} else {
@@ -791,7 +798,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 					} else if (latex.startsWith('\\(')) {
 						pureLatex = latex.slice(2, -2);
 					}
-					const escapedInline = inlinePlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+					const escapedInline = inlinePlaceholder.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 					const regex = new RegExp(escapedInline, 'g');
 					html = html.replace(regex, `<span class="math-inline">${pureLatex}</span>`);
 				}
@@ -801,7 +808,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		}
 		
 		const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
-		const headingsData: any[] = [];
+		const headingsData: HeadingInfo[] = [];
 		
 		headings.forEach((heading, index) => {
 			if (!heading.id) {
@@ -842,7 +849,7 @@ window.addEventListener('DOMContentLoaded', function() {
 				output: 'html'
 			});
 		} catch (e) {
-			console.error('Error rendering display math:', e);
+			// 忽略错误
 		}
 	});
 	
@@ -856,7 +863,7 @@ window.addEventListener('DOMContentLoaded', function() {
 				output: 'html'
 			});
 		} catch (e) {
-			console.error('Error rendering inline math:', e);
+			// 忽略错误
 		}
 	});
 });
@@ -890,7 +897,7 @@ document.addEventListener('DOMContentLoaded', function() {
 					this.innerHTML = originalHTML;
 					this.classList.remove('copied');
 				}, 2000);
-			}).catch(err => {
+			}).catch(() => {
 				const textArea = document.createElement('textarea');
 				textArea.value = textToCopy;
 				textArea.style.position = 'fixed';
@@ -907,8 +914,8 @@ document.addEventListener('DOMContentLoaded', function() {
 						this.innerHTML = originalHTML;
 						this.classList.remove('copied');
 					}, 2000);
-				} catch (err) {
-					console.error('Failed to copy:', err);
+				} catch () {
+					// 忽略错误
 				}
 				document.body.removeChild(textArea);
 			});
@@ -1003,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	 * @param headings 标题数组
 	 * @returns 嵌套的目录 HTML
 	 */
-	generateNestedTOC(headings: any[]): string {
+	generateNestedTOC(headings: HeadingInfo[]): string {
 		if (headings.length === 0) {
 			return '<ul></ul>';
 		}
@@ -1187,7 +1194,10 @@ document.addEventListener('DOMContentLoaded', function() {
 				let dataUrl: string | null = null;
 
 				if (processedImages.has(img.src)) {
-					dataUrl = processedImages.get(img.src)!;
+					const storedDataUrl = processedImages.get(img.src);
+					if (storedDataUrl) {
+						dataUrl = storedDataUrl;
+					}
 				} else if (processingImages.has(img.src)) {
 					continue;
 				} else {
@@ -1249,7 +1259,10 @@ document.addEventListener('DOMContentLoaded', function() {
 					let dataUrl: string | null = null;
 
 					if (processedImages.has(embed.src)) {
-						dataUrl = processedImages.get(embed.src)!;
+						const storedDataUrl = processedImages.get(embed.src);
+						if (storedDataUrl) {
+							dataUrl = storedDataUrl;
+						}
 					} else if (processingImages.has(embed.src)) {
 						continue;
 					} else {
@@ -1311,28 +1324,34 @@ document.addEventListener('DOMContentLoaded', function() {
 		}
 
 		if (!imageFile) {
-			const path = require('path');
+			const path = (window as any).require('path');
 			const fileDir = path.dirname(file.path);
 			const resolvedPath = path.normalize(path.join(fileDir, cleanSrc));
 			
-			imageFile = this.app.vault.getAbstractFileByPath(resolvedPath) as TFile;
+			const abstractFile = this.app.vault.getAbstractFileByPath(resolvedPath);
+			if (abstractFile instanceof TFile) {
+				imageFile = abstractFile;
+			}
 		}
 
 		if (!imageFile) {
-			imageFile = this.app.vault.getAbstractFileByPath(cleanSrc) as TFile;
+			const abstractFile = this.app.vault.getAbstractFileByPath(cleanSrc);
+			if (abstractFile instanceof TFile) {
+				imageFile = abstractFile;
+			}
 		}
 
 		if (!imageFile) {
 			return null;
 		}
 
-		if (imageFile && imageFile instanceof TFile && 
+		if (imageFile instanceof TFile && 
 			['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(imageFile.extension.toLowerCase())) {
 			try {
 				const buffer = await this.app.vault.readBinary(imageFile);
 				const base64 = this.arrayBufferToBase64(buffer);
 				return { base64, extension: imageFile.extension };
-			} catch (error) {
+			} catch {
 				return null;
 			}
 		}

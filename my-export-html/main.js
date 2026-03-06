@@ -568,7 +568,8 @@ table tr:hover {
 }
 `;
 var DEFAULT_SETTINGS = {
-  autoOpenFolder: true
+  autoOpenFolder: true,
+  exportPath: ""
 };
 var TRANSLATIONS = {
   "Export to HTML...": {
@@ -609,7 +610,6 @@ var TRANSLATIONS = {
 };
 var ExportHTMLPlugin = class extends import_obsidian.Plugin {
   async onload() {
-    console.log("Export HTML plugin loaded");
     await this.loadSettings();
     this.addSettingTab(new ExportHTMLSettingTab(this.app, this));
     this.addCommand({
@@ -630,7 +630,7 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
     this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
       if (file.extension === "md") {
         menu.addItem((item) => {
-          item.setTitle(this.translate("Export to HTML...")).setIcon("download").onClick(async () => {
+          item.setTitle(this.translate("Export to HTML...")).setIcon("download").onClick(() => {
             this.exportToHTML(file);
           });
         });
@@ -638,10 +638,9 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
     }));
   }
   onunload() {
-    console.log("Export HTML plugin unloaded");
   }
   translate(key) {
-    const locale = localStorage.getItem("language") || "en";
+    const locale = navigator.language || "en";
     const translation = TRANSLATIONS[key];
     return (translation == null ? void 0 : translation[locale]) || (translation == null ? void 0 : translation.en) || key;
   }
@@ -655,8 +654,8 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
     try {
       const content = await this.app.vault.read(file);
       const htmlContent = await this.convertMarkdownToHTML(content, file);
-      const electron = require("electron");
-      const path = require("path");
+      const electron = window.require("electron");
+      const path = window.require("path");
       const adapter = this.app.vault.adapter;
       const basePath = adapter.getBasePath();
       let defaultPath;
@@ -673,18 +672,16 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
         ]
       });
       if (!canceled && filePath) {
-        const fs = require("fs/promises");
+        const fs = window.require("fs/promises");
         await fs.writeFile(filePath, htmlContent, "utf-8");
         new import_obsidian.Notice(`${this.translate("HTML exported successfully")}: ${filePath}`);
         if (this.settings.autoOpenFolder) {
-          const path2 = require("path");
-          const folderPath = path2.dirname(filePath);
-          const { shell } = require("electron");
+          const folderPath = path.dirname(filePath);
+          const { shell } = electron;
           shell.openPath(folderPath);
         }
       }
     } catch (error) {
-      console.error("Error exporting HTML:", error);
       new import_obsidian.Notice(this.translate("Failed to export HTML"));
     }
   }
@@ -716,7 +713,7 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
       });
     }
     const tempDiv = document.createElement("div");
-    await import_obsidian.MarkdownRenderer.renderMarkdown(protectedMarkdown, tempDiv, file.path, this);
+    await import_obsidian.MarkdownRenderer.render(this.app, protectedMarkdown, tempDiv, file.path, this);
     if (hasMath) {
       let html2 = tempDiv.innerHTML;
       mathPlaceholders.forEach((latex, index) => {
@@ -729,7 +726,7 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
           } else if (latex.startsWith("\\[")) {
             pureLatex = latex.slice(2, -2);
           }
-          const escapedBlock = blockPlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+          const escapedBlock = blockPlaceholder.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
           const regex = new RegExp(escapedBlock, "g");
           html2 = html2.replace(regex, `<div class="math-display">${pureLatex}</div>`);
         } else {
@@ -739,7 +736,7 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
           } else if (latex.startsWith("\\(")) {
             pureLatex = latex.slice(2, -2);
           }
-          const escapedInline = inlinePlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+          const escapedInline = inlinePlaceholder.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
           const regex = new RegExp(escapedInline, "g");
           html2 = html2.replace(regex, `<span class="math-inline">${pureLatex}</span>`);
         }
@@ -781,7 +778,7 @@ window.addEventListener('DOMContentLoaded', function() {
 				output: 'html'
 			});
 		} catch (e) {
-			console.error('Error rendering display math:', e);
+			// \u5FFD\u7565\u9519\u8BEF
 		}
 	});
 	
@@ -795,7 +792,7 @@ window.addEventListener('DOMContentLoaded', function() {
 				output: 'html'
 			});
 		} catch (e) {
-			console.error('Error rendering inline math:', e);
+			// \u5FFD\u7565\u9519\u8BEF
 		}
 	});
 });
@@ -828,7 +825,7 @@ document.addEventListener('DOMContentLoaded', function() {
 					this.innerHTML = originalHTML;
 					this.classList.remove('copied');
 				}, 2000);
-			}).catch(err => {
+			}).catch(() => {
 				const textArea = document.createElement('textarea');
 				textArea.value = textToCopy;
 				textArea.style.position = 'fixed';
@@ -845,8 +842,8 @@ document.addEventListener('DOMContentLoaded', function() {
 						this.innerHTML = originalHTML;
 						this.classList.remove('copied');
 					}, 2000);
-				} catch (err) {
-					console.error('Failed to copy:', err);
+				} catch () {
+					// \u5FFD\u7565\u9519\u8BEF
 				}
 				document.body.removeChild(textArea);
 			});
@@ -1049,7 +1046,10 @@ document.addEventListener('DOMContentLoaded', function() {
       try {
         let dataUrl = null;
         if (processedImages.has(img.src)) {
-          dataUrl = processedImages.get(img.src);
+          const storedDataUrl = processedImages.get(img.src);
+          if (storedDataUrl) {
+            dataUrl = storedDataUrl;
+          }
         } else if (processingImages.has(img.src)) {
           continue;
         } else {
@@ -1101,7 +1101,10 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
           let dataUrl = null;
           if (processedImages.has(embed.src)) {
-            dataUrl = processedImages.get(embed.src);
+            const storedDataUrl = processedImages.get(embed.src);
+            if (storedDataUrl) {
+              dataUrl = storedDataUrl;
+            }
           } else if (processingImages.has(embed.src)) {
             continue;
           } else {
@@ -1146,23 +1149,29 @@ document.addEventListener('DOMContentLoaded', function() {
       imageFile = this.app.metadataCache.getFirstLinkpathDest(src, file.path);
     }
     if (!imageFile) {
-      const path = require("path");
+      const path = window.require("path");
       const fileDir = path.dirname(file.path);
       const resolvedPath = path.normalize(path.join(fileDir, cleanSrc));
-      imageFile = this.app.vault.getAbstractFileByPath(resolvedPath);
+      const abstractFile = this.app.vault.getAbstractFileByPath(resolvedPath);
+      if (abstractFile instanceof import_obsidian.TFile) {
+        imageFile = abstractFile;
+      }
     }
     if (!imageFile) {
-      imageFile = this.app.vault.getAbstractFileByPath(cleanSrc);
+      const abstractFile = this.app.vault.getAbstractFileByPath(cleanSrc);
+      if (abstractFile instanceof import_obsidian.TFile) {
+        imageFile = abstractFile;
+      }
     }
     if (!imageFile) {
       return null;
     }
-    if (imageFile && imageFile instanceof import_obsidian.TFile && ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"].includes(imageFile.extension.toLowerCase())) {
+    if (imageFile instanceof import_obsidian.TFile && ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"].includes(imageFile.extension.toLowerCase())) {
       try {
         const buffer = await this.app.vault.readBinary(imageFile);
         const base64 = this.arrayBufferToBase64(buffer);
         return { base64, extension: imageFile.extension };
-      } catch (error) {
+      } catch (e) {
         return null;
       }
     }
