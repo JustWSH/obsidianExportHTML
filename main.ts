@@ -95,27 +95,44 @@ code {
 }
 
 pre {
-	background-color: #0d1117;
-	border-radius: 6px;
-	font-size: 85%;
-	line-height: 1.45;
+	background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+	border-radius: 8px;
+	font-size: 14px;
+	line-height: 1.6;
 	overflow: auto;
-	padding: 16px;
+	padding: 20px 16px;
 	margin-top: 0;
 	margin-bottom: 16px;
 	position: relative;
 	max-width: 100%;
+	border: 1px solid #e2e8f0;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.code-block-wrapper {
+	position: relative;
+	margin-bottom: 16px;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 1px solid #e2e8f0;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .code-block-wrapper pre {
 	position: relative;
 	overflow-x: auto;
 	overflow-y: auto;
+	margin: 0;
+	border-radius: 0;
+	border: none;
+	box-shadow: none;
+	padding: 20px 16px 20px 64px;
+	background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 pre code {
 	background: transparent;
-	color: #c9d1d9;
+	color: #334155;
 	padding: 0;
 	border: none;
 	font-size: inherit;
@@ -123,11 +140,54 @@ pre code {
 	white-space: pre;
 	word-wrap: normal;
 	overflow-x: auto;
+	font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
 }
 
-.code-block-wrapper {
-	position: relative;
-	margin-bottom: 16px;
+.code-block-wrapper .line-numbers {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 52px;
+	background: linear-gradient(145deg, #f1f5f9 0%, #e2e8f0 100%);
+	border-right: 1px solid #cbd5e1;
+	padding: 20px 0;
+	text-align: right;
+	color: #94a3b8;
+	font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+	font-size: 14px;
+	line-height: 1.6;
+	overflow: hidden;
+	user-select: none;
+	pointer-events: none;
+	z-index: 1;
+}
+
+.code-block-wrapper .line-numbers span {
+	display: block;
+	padding-right: 8px;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-thumb {
+	background: #cbd5e1;
+	border-radius: 3px;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-thumb:hover {
+	background: #94a3b8;
+}
+
+.code-block-wrapper pre::-webkit-scrollbar-corner {
+	background: transparent;
 }
 
 .copy-button, .copy-code-button {
@@ -135,10 +195,10 @@ pre code {
 	top: 8px !important;
 	right: 8px !important;
 	padding: 4px 8px;
-	background-color: rgba(255, 255, 255, 0.1);
-	border: 1px solid rgba(255, 255, 255, 0.2);
+	background-color: rgba(255, 255, 255, 0.8);
+	border: 1px solid #e2e8f0;
 	border-radius: 6px;
-	color: #c9d1d9;
+	color: #475569;
 	font-size: 12px;
 	cursor: pointer;
 	transition: all 0.2s ease;
@@ -146,11 +206,13 @@ pre code {
 	display: flex;
 	align-items: center;
 	gap: 4px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .copy-button:hover, .copy-code-button:hover {
-	background-color: rgba(255, 255, 255, 0.2);
-	border-color: rgba(255, 255, 255, 0.4);
+	background-color: #ffffff;
+	border-color: #cbd5e1;
+	color: #334155;
 }
 
 .copy-button.copied, .copy-code-button.copied {
@@ -655,10 +717,11 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		// Get the processed HTML with IDs
 		let htmlWithIds = html;
 
-		// JavaScript for copy functionality
+		// JavaScript for copy functionality and line number sync
 		const copyScript = `
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+	// Copy functionality
 	const copyButtons = document.querySelectorAll('.copy-button, .copy-code-button');
 	
 	copyButtons.forEach(button => {
@@ -707,6 +770,19 @@ document.addEventListener('DOMContentLoaded', function() {
 				document.body.removeChild(textArea);
 			});
 		});
+	});
+	
+	// Sync line numbers scroll with code block
+	const codeBlocks = document.querySelectorAll('.code-block-wrapper');
+	codeBlocks.forEach(block => {
+		const pre = block.querySelector('pre');
+		const lineNumbers = block.querySelector('.line-numbers');
+		
+		if (pre && lineNumbers) {
+			pre.addEventListener('scroll', function() {
+				lineNumbers.scrollTop = pre.scrollTop;
+			});
+		}
 	});
 });
 </script>
@@ -825,11 +901,19 @@ document.addEventListener('DOMContentLoaded', function() {
 	}
 
 	wrapCodeBlocks(html: string): string {
-		// Wrap pre tags with code-block-wrapper
-		// Match both simple and complex pre structures
+		// Wrap pre tags with code-block-wrapper and add line numbers
 		const wrapped = html.replace(
 			/<pre([^>]*)>([\s\S]*?)<\/pre>/g,
-			`<div class="code-block-wrapper"><pre$1>$2</pre></div>`
+			(match, attributes, content) => {
+				// 计算行数
+				const lines = content.split('\n').length;
+				let lineNumbers = '';
+				for (let i = 1; i <= lines; i++) {
+					lineNumbers += `<span>${i}</span>`;
+				}
+				
+				return `<div class="code-block-wrapper"><div class="line-numbers">${lineNumbers}</div><pre${attributes}>${content}</pre></div>`;
+			}
 		);
 		return wrapped;
 	}
