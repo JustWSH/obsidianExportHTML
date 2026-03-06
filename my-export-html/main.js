@@ -42,6 +42,7 @@ body {
 	padding: 0;
 	display: flex;
 	min-height: 100vh;
+	overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -130,10 +131,13 @@ pre {
 	margin-top: 0;
 	margin-bottom: 16px;
 	position: relative;
+	max-width: 100%;
 }
 
 .code-block-wrapper pre {
 	position: relative;
+	overflow-x: auto;
+	overflow-y: auto;
 }
 
 pre code {
@@ -143,6 +147,9 @@ pre code {
 	border: none;
 	font-size: inherit;
 	display: block;
+	white-space: pre;
+	word-wrap: normal;
+	overflow-x: auto;
 }
 
 .code-block-wrapper {
@@ -385,6 +392,8 @@ a:hover {
 	flex: 1;
 	background: #ffffff;
 	transition: margin-left 0.1s ease;
+	max-width: 100%;
+	overflow-x: hidden;
 }
 
 .content-wrapper > *:first-child {
