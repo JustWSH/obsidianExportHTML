@@ -1,8 +1,11 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, Menu, Vault, FileSystemAdapter, MarkdownRenderer, Component } from 'obsidian';
 import { KATEX_JS_BASE64, KATEX_CSS_BASE64 } from './katex-constants';
 
+/**
+ * GitHub 风格的 CSS 样式
+ * 提供专业、简洁的文档样式
+ */
 const GITHUB_CSS = `
-/* Professional GitHub Style CSS */
 * {
 	box-sizing: border-box;
 }
@@ -537,17 +540,71 @@ table tr:hover {
 }
 `;
 
+/**
+ * 插件设置接口
+ */
 interface ExportHTMLPluginSettings {
 	autoOpenFolder: boolean;
 }
 
+/**
+ * 默认设置
+ */
 const DEFAULT_SETTINGS: ExportHTMLPluginSettings = {
 	autoOpenFolder: true
 };
 
+/**
+ * 翻译词典
+ * 支持中文和英文
+ */
+const TRANSLATIONS: { [key: string]: { [lang: string]: string } } = {
+	'Export to HTML...': {
+		'zh-CN': '导出为 HTML...',
+		'zh': '导出为 HTML...',
+		en: 'Export to HTML...'
+	},
+	'Exporting': {
+		'zh-CN': '正在导出',
+		'zh': '正在导出',
+		en: 'Exporting'
+	},
+	'Failed to export HTML': {
+		'zh-CN': '导出 HTML 失败',
+		'zh': '导出 HTML 失败',
+		en: 'Failed to export HTML'
+	},
+	'HTML exported successfully': {
+		'zh-CN': 'HTML 导出成功',
+		'zh': 'HTML 导出成功',
+		en: 'HTML exported successfully'
+	},
+	'Table of Contents': {
+		'zh-CN': '目录',
+		'zh': '目录',
+		en: 'Table of Contents'
+	},
+	'Auto-open folder after export': {
+		'zh-CN': '导出后自动打开文件夹',
+		'zh': '导出后自动打开文件夹',
+		en: 'Auto-open folder after export'
+	},
+	'Automatically open the folder containing the exported HTML file after successful export': {
+		'zh-CN': '导出成功后自动打开包含导出 HTML 文件的文件夹',
+		'zh': '导出成功后自动打开包含导出 HTML 文件的文件夹',
+		en: 'Automatically open the folder containing the exported HTML file after successful export'
+	}
+};
+
+/**
+ * 主插件类
+ */
 export default class ExportHTMLPlugin extends Plugin implements Component {
 	settings: ExportHTMLPluginSettings;
 
+	/**
+	 * 插件加载时执行
+	 */
 	async onload() {
 		console.log('Export HTML plugin loaded');
 		
@@ -555,7 +612,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		
 		this.addSettingTab(new ExportHTMLSettingTab(this.app, this));
 
-		// Add right-click menu item
+		// 添加命令
 		this.addCommand({
 			id: 'export-to-html',
 			name: this.translate('Export to HTML...'),
@@ -572,7 +629,7 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 			}
 		});
 
-		// Add file explorer context menu
+		// 添加文件浏览器右键菜单
 		this.registerEvent(
 			this.app.workspace.on('file-menu', (menu: Menu, file: TFile) => {
 				if (file.extension === 'md') {
@@ -589,61 +646,52 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		);
 	}
 
+	/**
+	 * 插件卸载时执行
+	 */
+	onunload() {
+		console.log('Export HTML plugin unloaded');
+	}
+
+	/**
+	 * 翻译函数
+	 * @param key 翻译键
+	 * @returns 翻译后的文本
+	 */
 	translate(key: string): string {
 		const locale = localStorage.getItem('language') || 'en';
-		const translations: { [key: string]: { [lang: string]: string } } = {
-			'Export to HTML...': {
-				'zh-CN': '导出为 HTML...',
-				'zh': '导出为 HTML...',
-				en: 'Export to HTML...'
-			},
-			'Exporting': {
-				'zh-CN': '正在导出',
-				'zh': '正在导出',
-				en: 'Exporting'
-			},
-			'Failed to export HTML': {
-				'zh-CN': '导出 HTML 失败',
-				'zh': '导出 HTML 失败',
-				en: 'Failed to export HTML'
-			},
-			'HTML exported successfully': {
-				'zh-CN': 'HTML 导出成功',
-				'zh': 'HTML 导出成功',
-				en: 'HTML exported successfully'
-			},
-			'Table of Contents': {
-				'zh-CN': '目录',
-				'zh': '目录',
-				en: 'Table of Contents'
-			},
-			'Auto-open folder after export': {
-				'zh-CN': '导出后自动打开文件夹',
-				'zh': '导出后自动打开文件夹',
-				en: 'Auto-open folder after export'
-			},
-			'Automatically open the folder containing the exported HTML file after successful export': {
-				'zh-CN': '导出成功后自动打开包含导出 HTML 文件的文件夹',
-				'zh': '导出成功后自动打开包含导出 HTML 文件的文件夹',
-				en: 'Automatically open the folder containing the exported HTML file after successful export'
-			}
-		};
-		const translation = translations[key];
+		const translation = TRANSLATIONS[key];
 		return translation?.[locale] || translation?.en || key;
 	}
 
+	/**
+	 * 加载插件设置
+	 */
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	/**
+	 * 保存插件设置
+	 */
+	async saveSettings() {
+		await this.saveData(this.settings);
+	}
+
+	/**
+	 * 导出 Markdown 文件为 HTML
+	 * @param file 要导出的文件
+	 */
 	async exportToHTML(file: TFile) {
 		try {
 			const content = await this.app.vault.read(file);
 			const htmlContent = await this.convertMarkdownToHTML(content, file);
 			
-			// Show save dialog using Electron's remote dialog API
 			const electron = require('electron');
 			const path = require('path');
 			const adapter = this.app.vault.adapter as FileSystemAdapter;
 			const basePath = adapter.getBasePath();
 			
-			// Build default path: same directory as the current file, with .html extension
 			let defaultPath: string;
 			if (file.parent && file.parent.path) {
 				defaultPath = path.join(basePath, file.parent.path, file.basename + '.html');
@@ -660,12 +708,10 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 			});
 
 			if (!canceled && filePath) {
-				// Save the HTML file using Node.js fs/promises
 				const fs = require('fs/promises');
 				await fs.writeFile(filePath, htmlContent, 'utf-8');
 				new Notice(`${this.translate('HTML exported successfully')}: ${filePath}`);
 				
-				// Auto-open folder if setting is enabled
 				if (this.settings.autoOpenFolder) {
 					const path = require('path');
 					const folderPath = path.dirname(filePath);
@@ -679,104 +725,85 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		}
 	}
 
+	/**
+	 * 将 Markdown 内容转换为 HTML
+	 * @param markdown Markdown 内容
+	 * @param file 源文件
+	 * @returns 生成的 HTML 字符串
+	 */
 	async convertMarkdownToHTML(markdown: string, file: TFile): Promise<string> {
-		// 先在 Markdown 源码层面提取所有图片引用
 		const imageLinks = this.extractImageLinks(markdown);
-		
-		// 检测是否包含数学公式
 		const hasMath = this.detectMathFormulas(markdown);
 		
-		// 保护数学公式，防止Obsidian渲染
 		let protectedMarkdown = markdown;
 		const mathPlaceholders: string[] = [];
 		
 		if (hasMath) {
-			// 保护块级公式 $$...$$
 			protectedMarkdown = protectedMarkdown.replace(/\$\$([\s\S]+?)\$\$/g, (match, latex) => {
 				const placeholder = `MATH_BLOCK_PLACEHOLDER_${mathPlaceholders.length}_END`;
 				mathPlaceholders.push(`$$${latex}$$`);
 				return placeholder;
 			});
 			
-			// 保护行内公式 $...$
 			protectedMarkdown = protectedMarkdown.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
 				const placeholder = `MATH_INLINE_PLACEHOLDER_${mathPlaceholders.length}_END`;
 				mathPlaceholders.push(`$${latex}$`);
 				return placeholder;
 			});
 			
-			// 保护 \(...\)
 			protectedMarkdown = protectedMarkdown.replace(/\\\(([^)]+?)\\\)/g, (match, latex) => {
 				const placeholder = `MATH_INLINE_PLACEHOLDER_${mathPlaceholders.length}_END`;
 				mathPlaceholders.push(`\\(${latex}\\)`);
 				return placeholder;
 			});
 			
-			// 保护 \[...\]
 			protectedMarkdown = protectedMarkdown.replace(/\\\[([\s\S]+?)\\\]/g, (match, latex) => {
 				const placeholder = `MATH_BLOCK_PLACEHOLDER_${mathPlaceholders.length}_END`;
 				mathPlaceholders.push(`\\[${latex}\\]`);
 				return placeholder;
 			});
-			
-			console.log('Protected', mathPlaceholders.length, 'math formulas');
 		}
 		
-		// Create a temporary div to render markdown
 		const tempDiv = document.createElement('div');
-		
-		// Use Obsidian's markdown renderer (static method)
 		await MarkdownRenderer.renderMarkdown(protectedMarkdown, tempDiv, file.path, this);
 		
-		console.log('After Obsidian render, HTML length:', tempDiv.innerHTML.length);
-		console.log('First 500 chars:', tempDiv.innerHTML.substring(0, 500));
-		
-		// 恢复数学公式占位符
 		if (hasMath) {
 			let html = tempDiv.innerHTML;
-			console.log('Before restore, looking for placeholders...');
-			console.log('Has MATH_INLINE_PLACEHOLDER:', html.includes('MATH_INLINE_PLACEHOLDER'));
-			console.log('Has MATH_BLOCK_PLACEHOLDER:', html.includes('MATH_BLOCK_PLACEHOLDER'));
 			
 			mathPlaceholders.forEach((latex, index) => {
-			const blockPlaceholder = `MATH_BLOCK_PLACEHOLDER_${index}_END`;
-			const inlinePlaceholder = `MATH_INLINE_PLACEHOLDER_${index}_END`;
-			if (latex.startsWith('$$') || latex.startsWith('\\[')) {
-				// 块级公式 - 提取纯LaTeX代码（去掉分隔符）
-				let pureLatex = latex;
-				if (latex.startsWith('$$')) {
-					pureLatex = latex.slice(2, -2);
-				} else if (latex.startsWith('\\[')) {
-					pureLatex = latex.slice(2, -2);
+				const blockPlaceholder = `MATH_BLOCK_PLACEHOLDER_${index}_END`;
+				const inlinePlaceholder = `MATH_INLINE_PLACEHOLDER_${index}_END`;
+				
+				if (latex.startsWith('$$') || latex.startsWith('\\[')) {
+					let pureLatex = latex;
+					if (latex.startsWith('$$')) {
+						pureLatex = latex.slice(2, -2);
+					} else if (latex.startsWith('\\[')) {
+						pureLatex = latex.slice(2, -2);
+					}
+					const escapedBlock = blockPlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+					const regex = new RegExp(escapedBlock, 'g');
+					html = html.replace(regex, `<div class="math-display">${pureLatex}</div>`);
+				} else {
+					let pureLatex = latex;
+					if (latex.startsWith('$')) {
+						pureLatex = latex.slice(1, -1);
+					} else if (latex.startsWith('\\(')) {
+						pureLatex = latex.slice(2, -2);
+					}
+					const escapedInline = inlinePlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+					const regex = new RegExp(escapedInline, 'g');
+					html = html.replace(regex, `<span class="math-inline">${pureLatex}</span>`);
 				}
-				const escapedBlock = blockPlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-				const regex = new RegExp(escapedBlock, 'g');
-				html = html.replace(regex, `<div class="math-display">${pureLatex}</div>`);
-			} else {
-				// 行内公式 - 提取纯LaTeX代码（去掉分隔符）
-				let pureLatex = latex;
-				if (latex.startsWith('$')) {
-					pureLatex = latex.slice(1, -1);
-				} else if (latex.startsWith('\\(')) {
-					pureLatex = latex.slice(2, -2);
-				}
-				const escapedInline = inlinePlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-				const regex = new RegExp(escapedInline, 'g');
-				html = html.replace(regex, `<span class="math-inline">${pureLatex}</span>`);
-			}
-		});
+			});
 			
-			console.log('After restore, has math-display:', html.includes('math-display'));
-			console.log('After restore, has math-inline:', html.includes('math-inline'));
 			tempDiv.innerHTML = html;
 		}
 		
-		// Extract headings and add IDs first
 		const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
 		const headingsData: any[] = [];
 		
 		headings.forEach((heading, index) => {
-			// Add ID if not present
 			if (!heading.id) {
 				heading.id = `heading-${index}`;
 				heading.setAttribute('id', heading.id);
@@ -789,29 +816,55 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 			});
 		});
 
-		// Process images: convert to base64
 		let html = await this.convertImagesToBase64(tempDiv.innerHTML, file, imageLinks);
-		
-		// Wrap code blocks
 		html = this.wrapCodeBlocks(html);
 
-		// Use filename as document title
 		const documentTitle = file.basename;
 
-		// Generate table of contents with proper nesting
 		let toc = '<div class="table-of-contents">';
 		toc += `<h2>${documentTitle}</h2>`;
 		toc += this.generateNestedTOC(headingsData);
 		toc += '</div>';
 
-		// Get the processed HTML with IDs
-		let htmlWithIds = html;
+		const mathJaxCSS = hasMath ? `<style>${atob(KATEX_CSS_BASE64)}</style>` : '';
 
-		// JavaScript for copy functionality and line number sync
+		const mathJaxScript = hasMath ? `
+<script>${atob(KATEX_JS_BASE64)}</script>
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+	document.querySelectorAll('.math-display').forEach(function(el) {
+		try {
+			const latex = el.textContent.trim();
+			el.innerHTML = '';
+			katex.render(latex, el, {
+				displayMode: true,
+				throwOnError: false,
+				output: 'html'
+			});
+		} catch (e) {
+			console.error('Error rendering display math:', e);
+		}
+	});
+	
+	document.querySelectorAll('.math-inline').forEach(function(el) {
+		try {
+			const latex = el.textContent.trim();
+			el.innerHTML = '';
+			katex.render(latex, el, {
+				displayMode: false,
+				throwOnError: false,
+				output: 'html'
+			});
+		} catch (e) {
+			console.error('Error rendering inline math:', e);
+		}
+	});
+});
+</script>` : '';
+
 		const copyScript = `
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-	// Copy functionality
 	const copyButtons = document.querySelectorAll('.copy-button, .copy-code-button');
 	
 	copyButtons.forEach(button => {
@@ -862,7 +915,6 @@ document.addEventListener('DOMContentLoaded', function() {
 		});
 	});
 	
-	// Sync line numbers scroll with code block
 	const codeBlocks = document.querySelectorAll('.code-block-wrapper');
 	codeBlocks.forEach(block => {
 		const pre = block.querySelector('pre');
@@ -878,136 +930,48 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 `;
 
-		// JavaScript for resize functionality
 		const resizeScript = `
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-	const toc = document.querySelector('.table-of-contents');
-	const contentWrapper = document.querySelector('.content-wrapper');
 	const resizeHandle = document.querySelector('.resize-handle');
+	const toc = document.querySelector('.table-of-contents');
+	const content = document.querySelector('.content-wrapper');
 	
-	if (!toc || !contentWrapper || !resizeHandle) return;
-	
-	let isResizing = false;
-	
-	resizeHandle.addEventListener('mousedown', function(e) {
-		isResizing = true;
-		resizeHandle.classList.add('resizing');
-		document.body.style.cursor = 'col-resize';
-		document.body.style.userSelect = 'none';
-		e.preventDefault();
-	});
-	
-	document.addEventListener('mousemove', function(e) {
-		if (!isResizing) return;
+	if (resizeHandle && toc && content) {
+		let isResizing = false;
 		
-		const newWidth = e.clientX;
-		const min = 200;
-		const max = 800;
+		resizeHandle.addEventListener('mousedown', function(e) {
+			isResizing = true;
+			resizeHandle.classList.add('resizing');
+			document.body.style.cursor = 'col-resize';
+			document.body.style.userSelect = 'none';
+		});
 		
-		if (newWidth >= min && newWidth <= max) {
+		document.addEventListener('mousemove', function(e) {
+			if (!isResizing) return;
+			
+			let newWidth = e.clientX;
+			if (newWidth < 200) newWidth = 200;
+			if (newWidth > 600) newWidth = 600;
+			
 			toc.style.width = newWidth + 'px';
-			contentWrapper.style.marginLeft = newWidth + 'px';
 			resizeHandle.style.left = newWidth + 'px';
-		}
-	});
-	
-	document.addEventListener('mouseup', function() {
-		if (isResizing) {
-			isResizing = false;
-			resizeHandle.classList.remove('resizing');
-			document.body.style.cursor = '';
-			document.body.style.userSelect = '';
-		}
-	});
+			content.style.marginLeft = (newWidth) + 'px';
+		});
+		
+		document.addEventListener('mouseup', function() {
+			if (isResizing) {
+				isResizing = false;
+				resizeHandle.classList.remove('resizing');
+				document.body.style.cursor = '';
+				document.body.style.userSelect = '';
+			}
+		});
+	}
 });
 </script>
 `;
 
-		// Build full HTML document
-		let mathJaxCSS = '';
-		
-		console.log('hasMath:', hasMath);
-		
-		if (hasMath) {
-			console.log('Adding KaTeX library (fully inline, offline)');
-			
-			// 使用内联的KaTeX库（完全离线，Base64编码）
-			mathJaxCSS = `<script>
-// 解码Base64并执行KaTeX
-const katexJS = atob("${KATEX_JS_BASE64}");
-const katexCSS = atob("${KATEX_CSS_BASE64}");
-
-// 创建并执行KaTeX JS
-const script = document.createElement('script');
-script.textContent = katexJS;
-document.head.appendChild(script);
-
-// 添加KaTeX CSS
-const style = document.createElement('style');
-style.textContent = katexCSS;
-document.head.appendChild(style);
-</script>
-<style>
-/* 覆盖字体为系统字体 */
-.katex {
-    font-family: "Times New Roman", Times, serif !important;
-    font-size: 1.1em;
-}
-
-.katex * {
-    font-family: "Times New Roman", Times, serif !important;
-}
-</style>
-<script>
-// 渲染数学公式
-window.addEventListener('DOMContentLoaded', function() {
-    console.log('=== KaTeX Debug Info ===');
-    
-    // 查找所有数学公式容器
-    const displayMaths = document.querySelectorAll('.math-display');
-    const inlineMaths = document.querySelectorAll('.math-inline');
-    
-    console.log('Found display math elements:', displayMaths.length);
-    console.log('Found inline math elements:', inlineMaths.length);
-    
-    // 渲染块级公式
-    displayMaths.forEach((el, index) => {
-        const latex = el.textContent;
-        console.log('Rendering display math #' + index + ':', latex.substring(0, 50));
-        try {
-            katex.render(latex, el, {
-                displayMode: true,
-                throwOnError: false,
-                output: 'html'
-            });
-        } catch (e) {
-            console.error('Error rendering display math:', e);
-            el.textContent = latex;
-        }
-    });
-    
-    // 渲染行内公式
-    inlineMaths.forEach((el, index) => {
-        const latex = el.textContent;
-        console.log('Rendering inline math #' + index + ':', latex.substring(0, 50));
-        try {
-            katex.render(latex, el, {
-                displayMode: false,
-                throwOnError: false,
-                output: 'html'
-            });
-        } catch (e) {
-            console.error('Error rendering inline math:', e);
-            el.textContent = latex;
-        }
-    });
-    
-    console.log('=== KaTeX rendering complete ===');
-});
-</script>`;
-		}
-		
 		const fullHTML = `
 <!DOCTYPE html>
 <html lang="en">
@@ -1022,78 +986,11 @@ window.addEventListener('DOMContentLoaded', function() {
 	${toc}
 	<div class="resize-handle"></div>
 	<div class="content-wrapper">
-		${htmlWithIds}
+		${html}
 	</div>
 	${copyScript}
 	${resizeScript}
-	<script>
-	// 详细的MathJax调试信息
-	window.addEventListener('DOMContentLoaded', function() {
-		console.log('=== MathJax Debug Info ===');
-		
-		// 查找所有MathJax容器
-		const mjxContainers = document.querySelectorAll('mjx-container');
-		console.log('Found mjx-container elements:', mjxContainers.length);
-		
-		if (mjxContainers.length > 0) {
-			mjxContainers.forEach((container, index) => {
-				console.log('\\n--- mjx-container #' + index + ' ---');
-				console.log('Tag:', container.tagName);
-				console.log('Class:', container.className);
-				console.log('Jax attribute:', container.getAttribute('jax'));
-				console.log('Display attribute:', container.getAttribute('display'));
-				
-				// 检查计算样式
-				const computedStyle = window.getComputedStyle(container);
-				console.log('Display:', computedStyle.display);
-				console.log('Visibility:', computedStyle.visibility);
-				console.log('Opacity:', computedStyle.opacity);
-				console.log('Font-family:', computedStyle.fontFamily);
-				console.log('Font-size:', computedStyle.fontSize);
-				console.log('Color:', computedStyle.color);
-				console.log('Width:', container.offsetWidth + 'px');
-				console.log('Height:', container.offsetHeight + 'px');
-				console.log('OffsetTop:', container.offsetTop + 'px');
-				console.log('OffsetLeft:', container.offsetLeft + 'px');
-				
-				// 检查子元素
-				const mjxMath = container.querySelector('mjx-math');
-				if (mjxMath) {
-					console.log('Has mjx-math child: YES');
-					const mathStyle = window.getComputedStyle(mjxMath);
-					console.log('mjx-math display:', mathStyle.display);
-					console.log('mjx-math visibility:', mathStyle.visibility);
-				} else {
-					console.log('Has mjx-math child: NO');
-				}
-				
-				// 检查mjx-c元素
-				const mjxCElements = container.querySelectorAll('mjx-c');
-				console.log('Number of mjx-c elements:', mjxCElements.length);
-				if (mjxCElements.length > 0) {
-					const firstC = mjxCElements[0];
-					const cStyle = window.getComputedStyle(firstC);
-					console.log('First mjx-c display:', cStyle.display);
-					console.log('First mjx-c visibility:', cStyle.visibility);
-					console.log('First mjx-c ::before content:', window.getComputedStyle(firstC, '::before').content);
-				}
-				
-				// 输出HTML结构（前500字符）
-				console.log('HTML structure:', container.outerHTML.substring(0, 500));
-			});
-		} else {
-			console.log('No mjx-container elements found!');
-			// 查找所有可能包含数学公式的元素
-			const mathSpans = document.querySelectorAll('[class*="math"]');
-			console.log('Found elements with "math" in class:', mathSpans.length);
-			mathSpans.forEach((span, idx) => {
-				console.log('Math span #' + idx + ':', span.outerHTML.substring(0, 200));
-			});
-		}
-		
-		console.log('\\n=== End of MathJax Debug Info ===');
-	});
-	</script>
+	${mathJaxScript}
 </body>
 </html>
 `;
@@ -1101,38 +998,38 @@ window.addEventListener('DOMContentLoaded', function() {
 		return fullHTML;
 	}
 
+	/**
+	 * 生成嵌套目录
+	 * @param headings 标题数组
+	 * @returns 嵌套的目录 HTML
+	 */
 	generateNestedTOC(headings: any[]): string {
 		if (headings.length === 0) {
 			return '<ul></ul>';
 		}
 
 		let toc = '<ul>';
-		const stack: number[] = [0]; // 记录当前层级
+		const stack: number[] = [0];
 
 		for (let i = 0; i < headings.length; i++) {
 			const heading = headings[i];
 			const level = heading.level;
 			
-			// 找到当前标题应该所在的层级
 			while (stack.length > 1 && stack[stack.length - 1] >= level) {
 				toc += '</li></ul>';
 				stack.pop();
 			}
 			
-			// 如果是新层级，添加 ul
 			if (level > stack[stack.length - 1]) {
 				toc += '<ul>';
 				stack.push(level);
 			} else if (i > 0) {
-				// 同一层级，关闭前一个 li
 				toc += '</li>';
 			}
 			
-			// 添加当前标题
 			toc += `<li><a href="#${heading.id}">${heading.text}</a>`;
 		}
 
-		// 关闭所有剩余的标签
 		while (stack.length > 1) {
 			toc += '</li></ul>';
 			stack.pop();
@@ -1142,15 +1039,16 @@ window.addEventListener('DOMContentLoaded', function() {
 		return toc;
 	}
 
+	/**
+	 * 包装代码块，添加行号
+	 * @param html HTML 字符串
+	 * @returns 包装后的 HTML
+	 */
 	wrapCodeBlocks(html: string): string {
-		// Wrap pre tags with code-block-wrapper and add line numbers
 		const wrapped = html.replace(
 			/<pre([^>]*)>([\s\S]*?)<\/pre>/g,
 			(match, attributes, content) => {
-				// 计算行数：从 content 中提取实际的文本行
-				// 先移除 HTML 标签，只保留文本内容
 				const textContent = content.replace(/<[^>]*>/g, '');
-				// 解码 HTML 实体
 				const decoded = textContent
 					.replace(/&lt;/g, '<')
 					.replace(/&gt;/g, '>')
@@ -1158,15 +1056,12 @@ window.addEventListener('DOMContentLoaded', function() {
 					.replace(/&quot;/g, '"')
 					.replace(/&#39;/g, "'");
 				
-				// 移除末尾的换行符
 				const trimmed = decoded.replace(/\n+$/, '');
 				
-				// 如果内容为空，行数为 0
 				if (trimmed === '') {
 					return `<div class="code-block-wrapper"><div class="line-numbers"></div><pre${attributes}>${content}</pre></div>`;
 				}
 				
-				// 计算行数
 				const lineCount = trimmed.split('\n').length;
 				
 				let lineNumbers = '';
@@ -1180,57 +1075,39 @@ window.addEventListener('DOMContentLoaded', function() {
 		return wrapped;
 	}
 
-	// 获取字体文件的MIME类型
-	getFontMimeType(filename: string): string {
-		const ext = filename.split('.').pop()?.toLowerCase();
-		const mimeTypes: { [key: string]: string } = {
-			'woff2': 'font/woff2',
-			'woff': 'font/woff',
-			'ttf': 'font/ttf',
-			'otf': 'font/otf',
-			'eot': 'application/vnd.ms-fontobject',
-			'svg': 'image/svg+xml'
-		};
-		return mimeTypes[ext || ''] || 'application/octet-stream';
-	}
-
-	// 检测 Markdown 中是否包含数学公式
+	/**
+	 * 检测 Markdown 中是否包含数学公式
+	 * @param markdown Markdown 内容
+	 * @returns 是否包含数学公式
+	 */
 	detectMathFormulas(markdown: string): boolean {
-		// 增强的数学公式检测正则表达式
-		// 行内公式：$...$（允许空格）
 		const inlineMathRegex = /\$\s*[^$]+?\s*\$/g;
-		// 块级公式：$$...$$（允许多行）
 		const blockMathRegex = /\$\$[\s\S]+?\$\$/g;
-		// LaTeX 格式：\(...\) 和 \[...\]
 		const latexInlineRegex = /\\\(\s*[^\\]+?\s*\\\)/g;
-		const latexBlockRegex = /\\\[\s*[\s\S]+?\s*\\\]/g;
+		const latexBlockRegex = /\\\[([\s\S]+?)\\\]/g;
 		
-		// 始终返回 true 进行调试
-		const hasMath = inlineMathRegex.test(markdown) ||
-			blockMathRegex.test(markdown) ||
-			latexInlineRegex.test(markdown) ||
+		return inlineMathRegex.test(markdown) || 
+			blockMathRegex.test(markdown) || 
+			latexInlineRegex.test(markdown) || 
 			latexBlockRegex.test(markdown);
-
-		// 添加调试日志
-		console.log('Math detection result:', hasMath);
-		return true; // 临时强制启用 KaTeX
 	}
 
-	// 从 Markdown 源码中提取所有图片链接
+	/**
+	 * 从 Markdown 源码中提取所有图片链接
+	 * @param markdown Markdown 内容
+	 * @returns 图片链接数组
+	 */
 	extractImageLinks(markdown: string): string[] {
 		const imageLinks: string[] = [];
 		
-		// 匹配 Markdown 图片语法：![alt](src) 或 ![[src]]
 		const markdownImgRegex = /!\[([^\]]*)\]\(([^)]+)\)|!\[\[([^\]]+)\]\]/g;
 		let match;
 		
 		while ((match = markdownImgRegex.exec(markdown)) !== null) {
-			// 匹配 ![alt](src) 格式
 			if (match[2]) {
-				const src = match[2].split('|')[0].split('?')[0]; // 移除尺寸等参数
+				const src = match[2].split('|')[0].split('?')[0];
 				imageLinks.push(src);
 			}
-			// 匹配 ![[src]] 格式（Obsidian 内部链接）
 			if (match[3]) {
 				const src = match[3].split('|')[0].split('?')[0];
 				imageLinks.push(src);
@@ -1240,21 +1117,26 @@ window.addEventListener('DOMContentLoaded', function() {
 		return imageLinks;
 	}
 
+	/**
+	 * 将 HTML 中的图片转换为 base64 编码
+	 * @param html HTML 字符串
+	 * @param file 源文件
+	 * @param imageLinks 图片链接数组
+	 * @returns 处理后的 HTML
+	 */
 	async convertImagesToBase64(html: string, file: TFile, imageLinks: string[] = []): Promise<string> {
 		let processedHtml = html;
 		const processedImages = new Map<string, string>();
 		const processingImages = new Set<string>();
 
-		// 首先处理从 Markdown 中提取的所有图片链接
 		for (const imgSrc of imageLinks) {
 			const cleanSrc = imgSrc.split('?')[0].split('#')[0];
 			
-			// 检查文件后缀名，只处理图片文件
 			const extension = cleanSrc.split('.').pop()?.toLowerCase() || '';
 			const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif', 'heic'];
 			
 			if (!imageExtensions.includes(extension)) {
-				continue; // 跳过非图片文件
+				continue;
 			}
 
 			if (cleanSrc.startsWith('data:')) {
@@ -1276,11 +1158,10 @@ window.addEventListener('DOMContentLoaded', function() {
 					processedImages.set(cleanSrc, dataUrl);
 				}
 			} catch (error) {
-				// Silently fail for non-image files
+				// 忽略错误
 			}
 		}
 
-		// 处理 <img> 标签
 		const imgRegex = /<img src="([^"]+)"(?: alt="([^"]*)")?(?: title="([^"]*)")?\s*\/?>/g;
 		
 		const imgMatches: { full: string; src: string; alt: string; index: number }[] = [];
@@ -1330,7 +1211,7 @@ window.addEventListener('DOMContentLoaded', function() {
 					});
 				}
 			} catch (error) {
-				// Silently fail
+				// 忽略错误
 			}
 		}
 
@@ -1341,7 +1222,6 @@ window.addEventListener('DOMContentLoaded', function() {
 			}
 		}
 
-		// 处理 Obsidian 的 internal-embed span 标签
 		const embedRegex = /<span[^>]*class="[^"]*internal-embed[^"]*"[^>]*>[\s\S]*?<\/span>/g;
 		const embedMatches: { full: string; src?: string; alt?: string; index: number }[] = [];
 		
@@ -1393,7 +1273,7 @@ window.addEventListener('DOMContentLoaded', function() {
 						});
 					}
 				} catch (error) {
-					// Silently fail
+					// 忽略错误
 				}
 			}
 		}
@@ -1408,40 +1288,36 @@ window.addEventListener('DOMContentLoaded', function() {
 		return processedHtml;
 	}
 
+	/**
+	 * 获取图片的 base64 编码
+	 * @param src 图片源
+	 * @param file 源文件
+	 * @returns base64 编码和图片扩展名，失败返回 null
+	 */
 	async getImageBase64(src: string, file: TFile): Promise<{ base64: string; extension: string } | null> {
-		// Skip if already a data URL
 		if (src.startsWith('data:')) {
 			return null;
 		}
 
-		// Handle Obsidian internal links (decode URI component)
 		const decodedSrc = decodeURIComponent(src);
-		
-		// Remove query parameters and hash
 		const cleanSrc = decodedSrc.split('?')[0].split('#')[0];
 		
-		// Try to find the image file
 		let imageFile: TFile | null = null;
 		
-		// Try direct path first using Obsidian's metadata cache
 		imageFile = this.app.metadataCache.getFirstLinkpathDest(cleanSrc, file.path);
 		
-		// If not found, try with original src
 		if (!imageFile) {
 			imageFile = this.app.metadataCache.getFirstLinkpathDest(src, file.path);
 		}
 
-		// 如果还是找不到，尝试使用相对路径解析
 		if (!imageFile) {
 			const path = require('path');
 			const fileDir = path.dirname(file.path);
 			const resolvedPath = path.normalize(path.join(fileDir, cleanSrc));
 			
-			// 尝试从 vault 中获取文件
 			imageFile = this.app.vault.getAbstractFileByPath(resolvedPath) as TFile;
 		}
 
-		// 如果还是找不到，尝试直接使用 src 作为路径
 		if (!imageFile) {
 			imageFile = this.app.vault.getAbstractFileByPath(cleanSrc) as TFile;
 		}
@@ -1453,9 +1329,7 @@ window.addEventListener('DOMContentLoaded', function() {
 		if (imageFile && imageFile instanceof TFile && 
 			['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(imageFile.extension.toLowerCase())) {
 			try {
-				// Read image content
 				const buffer = await this.app.vault.readBinary(imageFile);
-				// Convert buffer to base64 using chunked approach to avoid stack overflow
 				const base64 = this.arrayBufferToBase64(buffer);
 				return { base64, extension: imageFile.extension };
 			} catch (error) {
@@ -1466,11 +1340,15 @@ window.addEventListener('DOMContentLoaded', function() {
 		return null;
 	}
 
-	// Convert ArrayBuffer to base64 using chunked approach
+	/**
+	 * 将 ArrayBuffer 转换为 base64 编码
+	 * @param buffer ArrayBuffer 数据
+	 * @returns base64 编码字符串
+	 */
 	arrayBufferToBase64(buffer: ArrayBuffer): string {
 		const bytes = new Uint8Array(buffer);
 		let base64 = '';
-		const chunkSize = 0x8000; // 32KB chunks to avoid stack overflow
+		const chunkSize = 0x8000;
 		
 		for (let i = 0; i < bytes.length; i += chunkSize) {
 			const chunk = bytes.subarray(i, i + chunkSize);
@@ -1480,6 +1358,11 @@ window.addEventListener('DOMContentLoaded', function() {
 		return btoa(base64);
 	}
 
+	/**
+	 * 获取 MIME 类型
+	 * @param extension 文件扩展名
+	 * @returns MIME 类型
+	 */
 	getMimeType(extension: string): string {
 		const mimeTypes: { [key: string]: string } = {
 			'png': 'image/png',
@@ -1491,20 +1374,11 @@ window.addEventListener('DOMContentLoaded', function() {
 		};
 		return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
 	}
-
-	onunload() {
-		console.log('Export HTML plugin unloaded');
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
 }
 
+/**
+ * 插件设置面板类
+ */
 class ExportHTMLSettingTab extends PluginSettingTab {
 	plugin: ExportHTMLPlugin;
 
