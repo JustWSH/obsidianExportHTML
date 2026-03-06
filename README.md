@@ -19,8 +19,8 @@
 查看实际导出效果：
 View the actual export results:
 
-- [📄 演示 HTML](demo/demo.html) - 查看导出后的 HTML 效果
-- [📄 Demo HTML](demo/demo.html) - View the exported HTML effect
+- [📄 演示 HTML](https://justwsh.github.io/obsidianExportHTML/demo/demo.html) - 查看导出后的 HTML 效果
+- [📄 Demo HTML](https://justwsh.github.io/obsidianExportHTML/demo/demo.html) - View the exported HTML effect
 - [📝 演示源文件](demo/demo.md) - 查看用于导出的 Markdown 源文件
 - [📝 Demo Source](demo/demo.md) - View the Markdown source file used for export
 
