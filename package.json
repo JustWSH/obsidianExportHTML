@@ -6,7 +6,7 @@
 	"scripts": {
 		"dev": "esbuild main.ts --bundle --target=es2018 --external:obsidian --external:electron --platform=node --format=cjs --outfile=main.js --watch",
 		"build": "node scripts/generate-katex-constants.js && esbuild main.ts --bundle --target=es2018 --external:obsidian --external:electron --platform=node --format=cjs --outfile=main.js",
-		"lint": "eslint . --ext .ts"
+		"lint": "eslint ."
 	},
 	"keywords": [
 		"obsidian",
@@ -17,13 +17,17 @@
 	"author": "almoost",
 	"license": "MIT",
 	"devDependencies": {
+		"@eslint/json": "^1.0.1",
 		"@types/node": "^16.11.6",
-		"@typescript-eslint/eslint-plugin": "^5.2.0",
-		"@typescript-eslint/parser": "^5.2.0",
+		"@typescript-eslint/eslint-plugin": "^8.56.1",
+		"@typescript-eslint/parser": "^8.56.1",
 		"esbuild": "^0.13.12",
+		"eslint": "^9.39.3",
+		"eslint-plugin-obsidianmd": "^0.1.9",
 		"obsidian": "^1.0.0",
 		"tslib": "^2.3.1",
-		"typescript": "^4.4.4"
+		"typescript": "^4.4.4",
+		"typescript-eslint": "^8.56.1"
 	},
 	"dependencies": {
 		"katex": "^0.16.9"
