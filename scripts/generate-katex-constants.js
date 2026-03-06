@@ -1,9 +1,13 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 console.log('Generating KaTeX constants...');
 
-// 读取KaTeX文件
+// 读取 KaTeX 文件
 const katexJSPath = path.join(__dirname, '..', 'node_modules', 'katex', 'dist', 'katex.min.js');
 const katexCSSPath = path.join(__dirname, '..', 'node_modules', 'katex', 'dist', 'katex.min.css');
 

@@ -4,6 +4,10 @@ import obsidianmd from "eslint-plugin-obsidianmd";
 import typescriptEslint from "typescript-eslint";
 
 export default defineConfig([
+  // 忽略编译生成的文件
+  {
+    ignores: ["main.js", "my-export-html/**"],
+  },
   // JS 文件配置
   {
     files: ["**/*.js"],
@@ -15,6 +19,7 @@ export default defineConfig([
     },
     rules: {
       // JS 文件只使用 obsidianmd 的基本规则
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
   // TypeScript 文件配置 - 使用官方推荐的方式

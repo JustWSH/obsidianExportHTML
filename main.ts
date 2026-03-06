@@ -696,8 +696,11 @@ export default class ExportHTMLPlugin extends Plugin {
 			const htmlContent = await this.convertMarkdownToHTML(content, file);
 			
 			// 使用 Electron API 保存文件
-			const electron = (window as any).require('electron');
-			const path = (window as any).require('path');
+		const electron = (window as unknown as { require: (module: string) => unknown }).require('electron') as { 
+			remote: { dialog: { showSaveDialog: (options: unknown) => Promise<{ canceled: boolean; filePath: string }> } };
+			shell: { openPath: (path: string) => Promise<string> };
+		};
+		const path = (window as unknown as { require: (module: string) => unknown }).require('path') as { join: (...args: string[]) => string; dirname: (path: string) => string };
 			const adapter = this.app.vault.adapter as FileSystemAdapter;
 			const basePath = adapter.getBasePath();
 			
@@ -717,7 +720,7 @@ export default class ExportHTMLPlugin extends Plugin {
 			});
 
 			if (!canceled && filePath) {
-				const fs = (window as any).require('fs/promises');
+				const fs = (window as unknown as { require: (module: string) => unknown }).require('fs/promises') as { writeFile: (path: string, data: string, encoding: string) => Promise<void> };
 				await fs.writeFile(filePath, htmlContent, 'utf-8');
 				new Notice(`${this.translate('HTML exported successfully')}: ${filePath}`);
 				
@@ -727,7 +730,7 @@ export default class ExportHTMLPlugin extends Plugin {
 					shell.openPath(folderPath);
 				}
 			}
-		} catch (error) {
+		} catch {
 			new Notice(this.translate('Failed to export HTML'));
 		}
 	}
@@ -1164,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', function() {
 					const dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
 					processedImages.set(cleanSrc, dataUrl);
 				}
-			} catch (error) {
+			} catch {
 				// 忽略错误
 			}
 		}
@@ -1220,7 +1223,7 @@ document.addEventListener('DOMContentLoaded', function() {
 						replacement: newImgTag
 					});
 				}
-			} catch (error) {
+			} catch {
 				// 忽略错误
 			}
 		}
@@ -1285,7 +1288,7 @@ document.addEventListener('DOMContentLoaded', function() {
 							replacement: newImgTag
 						});
 					}
-				} catch (error) {
+				} catch {
 					// 忽略错误
 				}
 			}
@@ -1324,7 +1327,7 @@ document.addEventListener('DOMContentLoaded', function() {
 		}
 
 		if (!imageFile) {
-			const path = (window as any).require('path');
+			const path = (window as unknown as { require: (module: string) => unknown }).require('path') as { join: (...args: string[]) => string; dirname: (path: string) => string; normalize: (path: string) => string };
 			const fileDir = path.dirname(file.path);
 			const resolvedPath = path.normalize(path.join(fileDir, cleanSrc));
 			

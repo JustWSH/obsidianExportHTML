@@ -135,7 +135,7 @@ See [LICENSE](LICENSE) file for details.
 
 **If you like this plugin, please give it a ⭐ Star!**
 
-[GitHub 仓库](https://github.com/almoost/obsidianExportHTML) | [问题反馈](https://github.com/almoost/obsidianExportHTML/issues)
+[GitHub 仓库](https://github.com/JustWSH/obsidianExportHTML) | [问题反馈](https://github.com/JustWSH/obsidianExportHTML/issues)
 
 Made with ❤️ by @almoost
 
