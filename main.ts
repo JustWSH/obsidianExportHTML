@@ -1,4 +1,5 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, Menu, Vault, FileSystemAdapter, MarkdownRenderer, Component } from 'obsidian';
+import { KATEX_JS_BASE64, KATEX_CSS_BASE64 } from './katex-constants';
 
 const GITHUB_CSS = `
 /* Professional GitHub Style CSS */
@@ -682,11 +683,93 @@ export default class ExportHTMLPlugin extends Plugin implements Component {
 		// 先在 Markdown 源码层面提取所有图片引用
 		const imageLinks = this.extractImageLinks(markdown);
 		
+		// 检测是否包含数学公式
+		const hasMath = this.detectMathFormulas(markdown);
+		
+		// 保护数学公式，防止Obsidian渲染
+		let protectedMarkdown = markdown;
+		const mathPlaceholders: string[] = [];
+		
+		if (hasMath) {
+			// 保护块级公式 $$...$$
+			protectedMarkdown = protectedMarkdown.replace(/\$\$([\s\S]+?)\$\$/g, (match, latex) => {
+				const placeholder = `MATH_BLOCK_PLACEHOLDER_${mathPlaceholders.length}_END`;
+				mathPlaceholders.push(`$$${latex}$$`);
+				return placeholder;
+			});
+			
+			// 保护行内公式 $...$
+			protectedMarkdown = protectedMarkdown.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
+				const placeholder = `MATH_INLINE_PLACEHOLDER_${mathPlaceholders.length}_END`;
+				mathPlaceholders.push(`$${latex}$`);
+				return placeholder;
+			});
+			
+			// 保护 \(...\)
+			protectedMarkdown = protectedMarkdown.replace(/\\\(([^)]+?)\\\)/g, (match, latex) => {
+				const placeholder = `MATH_INLINE_PLACEHOLDER_${mathPlaceholders.length}_END`;
+				mathPlaceholders.push(`\\(${latex}\\)`);
+				return placeholder;
+			});
+			
+			// 保护 \[...\]
+			protectedMarkdown = protectedMarkdown.replace(/\\\[([\s\S]+?)\\\]/g, (match, latex) => {
+				const placeholder = `MATH_BLOCK_PLACEHOLDER_${mathPlaceholders.length}_END`;
+				mathPlaceholders.push(`\\[${latex}\\]`);
+				return placeholder;
+			});
+			
+			console.log('Protected', mathPlaceholders.length, 'math formulas');
+		}
+		
 		// Create a temporary div to render markdown
 		const tempDiv = document.createElement('div');
 		
 		// Use Obsidian's markdown renderer (static method)
-		await MarkdownRenderer.renderMarkdown(markdown, tempDiv, file.path, this);
+		await MarkdownRenderer.renderMarkdown(protectedMarkdown, tempDiv, file.path, this);
+		
+		console.log('After Obsidian render, HTML length:', tempDiv.innerHTML.length);
+		console.log('First 500 chars:', tempDiv.innerHTML.substring(0, 500));
+		
+		// 恢复数学公式占位符
+		if (hasMath) {
+			let html = tempDiv.innerHTML;
+			console.log('Before restore, looking for placeholders...');
+			console.log('Has MATH_INLINE_PLACEHOLDER:', html.includes('MATH_INLINE_PLACEHOLDER'));
+			console.log('Has MATH_BLOCK_PLACEHOLDER:', html.includes('MATH_BLOCK_PLACEHOLDER'));
+			
+			mathPlaceholders.forEach((latex, index) => {
+			const blockPlaceholder = `MATH_BLOCK_PLACEHOLDER_${index}_END`;
+			const inlinePlaceholder = `MATH_INLINE_PLACEHOLDER_${index}_END`;
+			if (latex.startsWith('$$') || latex.startsWith('\\[')) {
+				// 块级公式 - 提取纯LaTeX代码（去掉分隔符）
+				let pureLatex = latex;
+				if (latex.startsWith('$$')) {
+					pureLatex = latex.slice(2, -2);
+				} else if (latex.startsWith('\\[')) {
+					pureLatex = latex.slice(2, -2);
+				}
+				const escapedBlock = blockPlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+				const regex = new RegExp(escapedBlock, 'g');
+				html = html.replace(regex, `<div class="math-display">${pureLatex}</div>`);
+			} else {
+				// 行内公式 - 提取纯LaTeX代码（去掉分隔符）
+				let pureLatex = latex;
+				if (latex.startsWith('$')) {
+					pureLatex = latex.slice(1, -1);
+				} else if (latex.startsWith('\\(')) {
+					pureLatex = latex.slice(2, -2);
+				}
+				const escapedInline = inlinePlaceholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+				const regex = new RegExp(escapedInline, 'g');
+				html = html.replace(regex, `<span class="math-inline">${pureLatex}</span>`);
+			}
+		});
+			
+			console.log('After restore, has math-display:', html.includes('math-display'));
+			console.log('After restore, has math-inline:', html.includes('math-inline'));
+			tempDiv.innerHTML = html;
+		}
 		
 		// Extract headings and add IDs first
 		const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
@@ -842,6 +925,89 @@ document.addEventListener('DOMContentLoaded', function() {
 `;
 
 		// Build full HTML document
+		let mathJaxCSS = '';
+		
+		console.log('hasMath:', hasMath);
+		
+		if (hasMath) {
+			console.log('Adding KaTeX library (fully inline, offline)');
+			
+			// 使用内联的KaTeX库（完全离线，Base64编码）
+			mathJaxCSS = `<script>
+// 解码Base64并执行KaTeX
+const katexJS = atob("${KATEX_JS_BASE64}");
+const katexCSS = atob("${KATEX_CSS_BASE64}");
+
+// 创建并执行KaTeX JS
+const script = document.createElement('script');
+script.textContent = katexJS;
+document.head.appendChild(script);
+
+// 添加KaTeX CSS
+const style = document.createElement('style');
+style.textContent = katexCSS;
+document.head.appendChild(style);
+</script>
+<style>
+/* 覆盖字体为系统字体 */
+.katex {
+    font-family: "Times New Roman", Times, serif !important;
+    font-size: 1.1em;
+}
+
+.katex * {
+    font-family: "Times New Roman", Times, serif !important;
+}
+</style>
+<script>
+// 渲染数学公式
+window.addEventListener('DOMContentLoaded', function() {
+    console.log('=== KaTeX Debug Info ===');
+    
+    // 查找所有数学公式容器
+    const displayMaths = document.querySelectorAll('.math-display');
+    const inlineMaths = document.querySelectorAll('.math-inline');
+    
+    console.log('Found display math elements:', displayMaths.length);
+    console.log('Found inline math elements:', inlineMaths.length);
+    
+    // 渲染块级公式
+    displayMaths.forEach((el, index) => {
+        const latex = el.textContent;
+        console.log('Rendering display math #' + index + ':', latex.substring(0, 50));
+        try {
+            katex.render(latex, el, {
+                displayMode: true,
+                throwOnError: false,
+                output: 'html'
+            });
+        } catch (e) {
+            console.error('Error rendering display math:', e);
+            el.textContent = latex;
+        }
+    });
+    
+    // 渲染行内公式
+    inlineMaths.forEach((el, index) => {
+        const latex = el.textContent;
+        console.log('Rendering inline math #' + index + ':', latex.substring(0, 50));
+        try {
+            katex.render(latex, el, {
+                displayMode: false,
+                throwOnError: false,
+                output: 'html'
+            });
+        } catch (e) {
+            console.error('Error rendering inline math:', e);
+            el.textContent = latex;
+        }
+    });
+    
+    console.log('=== KaTeX rendering complete ===');
+});
+</script>`;
+		}
+		
 		const fullHTML = `
 <!DOCTYPE html>
 <html lang="en">
@@ -850,6 +1016,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>${file.basename}</title>
 	<style>${GITHUB_CSS}</style>
+	${mathJaxCSS}
 </head>
 <body>
 	${toc}
@@ -859,6 +1026,74 @@ document.addEventListener('DOMContentLoaded', function() {
 	</div>
 	${copyScript}
 	${resizeScript}
+	<script>
+	// 详细的MathJax调试信息
+	window.addEventListener('DOMContentLoaded', function() {
+		console.log('=== MathJax Debug Info ===');
+		
+		// 查找所有MathJax容器
+		const mjxContainers = document.querySelectorAll('mjx-container');
+		console.log('Found mjx-container elements:', mjxContainers.length);
+		
+		if (mjxContainers.length > 0) {
+			mjxContainers.forEach((container, index) => {
+				console.log('\\n--- mjx-container #' + index + ' ---');
+				console.log('Tag:', container.tagName);
+				console.log('Class:', container.className);
+				console.log('Jax attribute:', container.getAttribute('jax'));
+				console.log('Display attribute:', container.getAttribute('display'));
+				
+				// 检查计算样式
+				const computedStyle = window.getComputedStyle(container);
+				console.log('Display:', computedStyle.display);
+				console.log('Visibility:', computedStyle.visibility);
+				console.log('Opacity:', computedStyle.opacity);
+				console.log('Font-family:', computedStyle.fontFamily);
+				console.log('Font-size:', computedStyle.fontSize);
+				console.log('Color:', computedStyle.color);
+				console.log('Width:', container.offsetWidth + 'px');
+				console.log('Height:', container.offsetHeight + 'px');
+				console.log('OffsetTop:', container.offsetTop + 'px');
+				console.log('OffsetLeft:', container.offsetLeft + 'px');
+				
+				// 检查子元素
+				const mjxMath = container.querySelector('mjx-math');
+				if (mjxMath) {
+					console.log('Has mjx-math child: YES');
+					const mathStyle = window.getComputedStyle(mjxMath);
+					console.log('mjx-math display:', mathStyle.display);
+					console.log('mjx-math visibility:', mathStyle.visibility);
+				} else {
+					console.log('Has mjx-math child: NO');
+				}
+				
+				// 检查mjx-c元素
+				const mjxCElements = container.querySelectorAll('mjx-c');
+				console.log('Number of mjx-c elements:', mjxCElements.length);
+				if (mjxCElements.length > 0) {
+					const firstC = mjxCElements[0];
+					const cStyle = window.getComputedStyle(firstC);
+					console.log('First mjx-c display:', cStyle.display);
+					console.log('First mjx-c visibility:', cStyle.visibility);
+					console.log('First mjx-c ::before content:', window.getComputedStyle(firstC, '::before').content);
+				}
+				
+				// 输出HTML结构（前500字符）
+				console.log('HTML structure:', container.outerHTML.substring(0, 500));
+			});
+		} else {
+			console.log('No mjx-container elements found!');
+			// 查找所有可能包含数学公式的元素
+			const mathSpans = document.querySelectorAll('[class*="math"]');
+			console.log('Found elements with "math" in class:', mathSpans.length);
+			mathSpans.forEach((span, idx) => {
+				console.log('Math span #' + idx + ':', span.outerHTML.substring(0, 200));
+			});
+		}
+		
+		console.log('\\n=== End of MathJax Debug Info ===');
+	});
+	</script>
 </body>
 </html>
 `;
@@ -943,6 +1178,42 @@ document.addEventListener('DOMContentLoaded', function() {
 			}
 		);
 		return wrapped;
+	}
+
+	// 获取字体文件的MIME类型
+	getFontMimeType(filename: string): string {
+		const ext = filename.split('.').pop()?.toLowerCase();
+		const mimeTypes: { [key: string]: string } = {
+			'woff2': 'font/woff2',
+			'woff': 'font/woff',
+			'ttf': 'font/ttf',
+			'otf': 'font/otf',
+			'eot': 'application/vnd.ms-fontobject',
+			'svg': 'image/svg+xml'
+		};
+		return mimeTypes[ext || ''] || 'application/octet-stream';
+	}
+
+	// 检测 Markdown 中是否包含数学公式
+	detectMathFormulas(markdown: string): boolean {
+		// 增强的数学公式检测正则表达式
+		// 行内公式：$...$（允许空格）
+		const inlineMathRegex = /\$\s*[^$]+?\s*\$/g;
+		// 块级公式：$$...$$（允许多行）
+		const blockMathRegex = /\$\$[\s\S]+?\$\$/g;
+		// LaTeX 格式：\(...\) 和 \[...\]
+		const latexInlineRegex = /\\\(\s*[^\\]+?\s*\\\)/g;
+		const latexBlockRegex = /\\\[\s*[\s\S]+?\s*\\\]/g;
+		
+		// 始终返回 true 进行调试
+		const hasMath = inlineMathRegex.test(markdown) ||
+			blockMathRegex.test(markdown) ||
+			latexInlineRegex.test(markdown) ||
+			latexBlockRegex.test(markdown);
+
+		// 添加调试日志
+		console.log('Math detection result:', hasMath);
+		return true; // 临时强制启用 KaTeX
 	}
 
 	// 从 Markdown 源码中提取所有图片链接
