@@ -6,11 +6,20 @@
 
 *Transform Your Obsidian Notes into Professional HTML Documents*
 
-[![Version](https://img.shields.io/badge/version-1.0.4-blue)](https://github.com/almoost/obsidianExportHTML)
+[![Version](https://img.shields.io/badge/version-1.0.5-blue)](https://github.com/almoost/obsidianExportHTML)
 [![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/almoost/obsidianExportHTML/blob/main/LICENSE)
-[![Obsidian](https://img.shields.io/badge/obsidian-0.15.0+-purple)](https://obsidian.md)
+[![Obsidian](https://img.shields.io/badge/obsidian-0.12.4+-purple)](https://obsidian.md)
 
 </div>
+
+---
+
+## 📖 在线预览 | Online Preview
+
+查看实际导出效果：
+
+- [📄 演示 HTML](demo/demo.html) - 查看导出后的 HTML 效果
+- [📝 演示源文件](demo/demo.md) - 查看用于导出的 Markdown 源文件
 
 ---
 
@@ -44,6 +53,16 @@
 - 优化的滚动体验，同步行号显示
 - Optimized scrolling with synchronized line numbers
 
+### 📐 数学公式支持 | Math Formula Support
+- 支持 LaTeX 格式的数学公式渲染
+- Support for LaTeX-style math formula rendering
+- 自动检测并渲染行内公式和块级公式
+- Automatic detection and rendering of inline and block formulas
+- 支持多种公式语法：`$...$`、`$$...$$`、`\(...\)`、`\[...\]`
+- Supports multiple formula syntaxes: `$...$`, `$$...$$`, `\(...\)`, `\[...\]`
+- 基于 KaTeX 库，渲染快速且美观
+- Based on KaTeX library, fast and beautiful rendering
+
 ---
 
 ## ✨ 核心功能 | Core Features
@@ -60,6 +79,8 @@
 | 🎯 **Smart Defaults** | Default save to same directory as source file |
 | 📤 **一键分享** | 单个 HTML 文件，便于邮件和网页分享 |
 | 📤 **Easy Sharing** | Single HTML file, easy to share via email and web |
+| 📐 **数学公式渲染** | 支持 LaTeX 格式的数学公式 |
+| 📐 **Math Formula Rendering** | Support for LaTeX-style math formulas |
 
 ---
 

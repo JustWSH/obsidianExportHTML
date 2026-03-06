@@ -194,7 +194,7 @@ person.introduce();
 
 ### 图片展示
 
-![](attachments/Pasted%20image%2020260306133327.png)
+![](mdImage\image.png)
 
 
 ---
