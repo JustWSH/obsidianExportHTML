@@ -121,7 +121,7 @@ pre {
 .code-block-wrapper pre {
 	position: relative;
 	overflow-x: auto;
-	overflow-y: scroll;
+	overflow-y: hidden;
 	margin: 0;
 	border-radius: 0;
 	border: none;
@@ -129,6 +129,12 @@ pre {
 	padding: 20px 16px 20px 64px;
 	background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
 	min-height: 60px;
+}
+
+.code-block-wrapper pre code {
+	display: block;
+	min-width: 100%;
+	margin-bottom: -8px;
 }
 
 pre code {
@@ -173,7 +179,7 @@ pre code {
 
 .code-block-wrapper pre::-webkit-scrollbar {
 	width: 0px;
-	height: 6px;
+	height: 8px;
 }
 
 .code-block-wrapper pre::-webkit-scrollbar-track {
@@ -182,7 +188,7 @@ pre code {
 
 .code-block-wrapper pre::-webkit-scrollbar-thumb {
 	background: #cbd5e1;
-	border-radius: 3px;
+	border-radius: 4px;
 }
 
 .code-block-wrapper pre::-webkit-scrollbar-thumb:hover {
@@ -191,10 +197,6 @@ pre code {
 
 .code-block-wrapper pre::-webkit-scrollbar-corner {
 	background: transparent;
-}
-
-.code-block-wrapper pre:hover::-webkit-scrollbar {
-	width: 6px;
 }
 
 .copy-button, .copy-code-button {
