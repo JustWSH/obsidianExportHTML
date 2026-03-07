@@ -630,7 +630,7 @@ export default class ExportHTMLPlugin extends Plugin {
 				const file = this.app.workspace.getActiveFile();
 				if (file && file.extension === 'md') {
 					if (!checking) {
-						this.exportToHTML(file);
+						void this.exportToHTML(file);
 					}
 					return true;
 				}
@@ -646,8 +646,8 @@ export default class ExportHTMLPlugin extends Plugin {
 						item
 							.setTitle(this.translate('Export to HTML...'))
 							.setIcon('download')
-							.onClick(() => {
-								this.exportToHTML(file);
+							.onClick(async () => {
+								await this.exportToHTML(file);
 							});
 					});
 				}
@@ -727,7 +727,7 @@ export default class ExportHTMLPlugin extends Plugin {
 				if (this.settings.autoOpenFolder) {
 					const folderPath = path.dirname(filePath);
 					const { shell } = electron;
-					shell.openPath(folderPath);
+					await shell.openPath(folderPath);
 				}
 			}
 		} catch {
@@ -807,6 +807,7 @@ export default class ExportHTMLPlugin extends Plugin {
 				}
 			});
 			
+			// eslint-disable-next-line @microsoft/sdl/no-inner-html
 			tempDiv.innerHTML = html;
 		}
 		
