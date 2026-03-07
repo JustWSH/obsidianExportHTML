@@ -876,55 +876,68 @@ window.addEventListener('DOMContentLoaded', function() {
 		const copyScript = `
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-	const copyButtons = document.querySelectorAll('.copy-button, .copy-code-button');
+	const copyButtons = document.querySelectorAll('.copy-code-button');
 	
 	copyButtons.forEach(button => {
 		button.addEventListener('click', function(e) {
 			e.preventDefault();
 			e.stopPropagation();
 			
-			const wrapper = this.closest('.code-block-wrapper');
-			if (!wrapper) return;
+			// 查找代码块
+			const pre = this.closest('pre');
+			if (!pre) return;
 			
-			const pre = wrapper.querySelector('pre');
+			// 获取 code 元素（排除 copy-code-button）
 			const code = pre.querySelector('code');
 			if (!code) return;
 			
 			const textToCopy = code.textContent;
 			
-			navigator.clipboard.writeText(textToCopy).then(() => {
-				const originalHTML = this.innerHTML;
-				this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
-				this.classList.add('copied');
-				
-				setTimeout(() => {
-					this.innerHTML = originalHTML;
-					this.classList.remove('copied');
-				}, 2000);
-			}).catch(() => {
-				const textArea = document.createElement('textarea');
-				textArea.value = textToCopy;
-				textArea.style.position = 'fixed';
-				textArea.style.left = '-999999px';
-				document.body.appendChild(textArea);
-				textArea.select();
-				try {
-					document.execCommand('copy');
-					const originalHTML = this.innerHTML;
-					this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
-					this.classList.add('copied');
-					
-					setTimeout(() => {
-						this.innerHTML = originalHTML;
-						this.classList.remove('copied');
-					}, 2000);
-				} catch () {
-					// 忽略错误
-				}
-				document.body.removeChild(textArea);
-			});
+			// 尝试使用现代 Clipboard API
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(textToCopy).then(() => {
+					showCopiedState(this);
+				}).catch(() => {
+					fallbackCopy(textToCopy, this);
+				});
+			} else {
+				fallbackCopy(textToCopy, this);
+			}
 		});
 	});
+	
+	// 显示复制成功状态
+	function showCopiedState(button) {
+		const originalHTML = button.innerHTML;
+		button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
+		button.classList.add('copied');
+		
+		setTimeout(() => {
+			button.innerHTML = originalHTML;
+			button.classList.remove('copied');
+		}, 2000);
+	}
+	
+	// 降级复制方案
+	function fallbackCopy(text, button) {
+		const textArea = document.createElement('textarea');
+		textArea.value = text;
+		textArea.style.position = 'fixed';
+		textArea.style.left = '-999999px';
+		textArea.style.top = '0';
+		document.body.appendChild(textArea);
+		textArea.focus();
+		textArea.select();
+		try {
+			const successful = document.execCommand('copy');
+			if (successful) {
+				showCopiedState(button);
+			}
+		} catch (err) {
+			// 忽略错误
+		}
+		document.body.removeChild(textArea);
+	}
 	
 	const codeBlocks = document.querySelectorAll('.code-block-wrapper');
 	codeBlocks.forEach(block => {

@@ -620,7 +620,7 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
         const file = this.app.workspace.getActiveFile();
         if (file && file.extension === "md") {
           if (!checking) {
-            this.exportToHTML(file);
+            void this.exportToHTML(file);
           }
           return true;
         }
@@ -630,8 +630,8 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
     this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
       if (file.extension === "md") {
         menu.addItem((item) => {
-          item.setTitle(this.translate("Export to HTML...")).setIcon("download").onClick(() => {
-            this.exportToHTML(file);
+          item.setTitle(this.translate("Export to HTML...")).setIcon("download").onClick(async () => {
+            await this.exportToHTML(file);
           });
         });
       }
@@ -678,10 +678,10 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
         if (this.settings.autoOpenFolder) {
           const folderPath = path.dirname(filePath);
           const { shell } = electron;
-          shell.openPath(folderPath);
+          await shell.openPath(folderPath);
         }
       }
-    } catch (error) {
+    } catch (e) {
       new import_obsidian.Notice(this.translate("Failed to export HTML"));
     }
   }
@@ -800,55 +800,68 @@ window.addEventListener('DOMContentLoaded', function() {
     const copyScript = `
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-	const copyButtons = document.querySelectorAll('.copy-button, .copy-code-button');
+	const copyButtons = document.querySelectorAll('.copy-code-button');
 	
 	copyButtons.forEach(button => {
 		button.addEventListener('click', function(e) {
 			e.preventDefault();
 			e.stopPropagation();
 			
-			const wrapper = this.closest('.code-block-wrapper');
-			if (!wrapper) return;
+			// \u67E5\u627E\u4EE3\u7801\u5757
+			const pre = this.closest('pre');
+			if (!pre) return;
 			
-			const pre = wrapper.querySelector('pre');
+			// \u83B7\u53D6 code \u5143\u7D20\uFF08\u6392\u9664 copy-code-button\uFF09
 			const code = pre.querySelector('code');
 			if (!code) return;
 			
 			const textToCopy = code.textContent;
 			
-			navigator.clipboard.writeText(textToCopy).then(() => {
-				const originalHTML = this.innerHTML;
-				this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
-				this.classList.add('copied');
-				
-				setTimeout(() => {
-					this.innerHTML = originalHTML;
-					this.classList.remove('copied');
-				}, 2000);
-			}).catch(() => {
-				const textArea = document.createElement('textarea');
-				textArea.value = textToCopy;
-				textArea.style.position = 'fixed';
-				textArea.style.left = '-999999px';
-				document.body.appendChild(textArea);
-				textArea.select();
-				try {
-					document.execCommand('copy');
-					const originalHTML = this.innerHTML;
-					this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
-					this.classList.add('copied');
-					
-					setTimeout(() => {
-						this.innerHTML = originalHTML;
-						this.classList.remove('copied');
-					}, 2000);
-				} catch () {
-					// \u5FFD\u7565\u9519\u8BEF
-				}
-				document.body.removeChild(textArea);
-			});
+			// \u5C1D\u8BD5\u4F7F\u7528\u73B0\u4EE3 Clipboard API
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(textToCopy).then(() => {
+					showCopiedState(this);
+				}).catch(() => {
+					fallbackCopy(textToCopy, this);
+				});
+			} else {
+				fallbackCopy(textToCopy, this);
+			}
 		});
 	});
+	
+	// \u663E\u793A\u590D\u5236\u6210\u529F\u72B6\u6001
+	function showCopiedState(button) {
+		const originalHTML = button.innerHTML;
+		button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
+		button.classList.add('copied');
+		
+		setTimeout(() => {
+			button.innerHTML = originalHTML;
+			button.classList.remove('copied');
+		}, 2000);
+	}
+	
+	// \u964D\u7EA7\u590D\u5236\u65B9\u6848
+	function fallbackCopy(text, button) {
+		const textArea = document.createElement('textarea');
+		textArea.value = text;
+		textArea.style.position = 'fixed';
+		textArea.style.left = '-999999px';
+		textArea.style.top = '0';
+		document.body.appendChild(textArea);
+		textArea.focus();
+		textArea.select();
+		try {
+			const successful = document.execCommand('copy');
+			if (successful) {
+				showCopiedState(button);
+			}
+		} catch (err) {
+			// \u5FFD\u7565\u9519\u8BEF
+		}
+		document.body.removeChild(textArea);
+	}
 	
 	const codeBlocks = document.querySelectorAll('.code-block-wrapper');
 	codeBlocks.forEach(block => {
@@ -1024,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const dataUrl = `data:${mimeType};base64,${base64Data.base64}`;
           processedImages.set(cleanSrc, dataUrl);
         }
-      } catch (error) {
+      } catch (e) {
       }
     }
     const imgRegex = /<img src="([^"]+)"(?: alt="([^"]*)")?(?: title="([^"]*)")?\s*\/?>/g;
@@ -1070,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', function() {
             replacement: newImgTag
           });
         }
-      } catch (error) {
+      } catch (e) {
       }
     }
     if (replacements.length > 0) {
@@ -1125,7 +1138,7 @@ document.addEventListener('DOMContentLoaded', function() {
               replacement: newImgTag
             });
           }
-        } catch (error) {
+        } catch (e) {
         }
       }
     }
