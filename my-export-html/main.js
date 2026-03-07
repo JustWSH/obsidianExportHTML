@@ -713,35 +713,93 @@ var ExportHTMLPlugin = class extends import_obsidian.Plugin {
       });
     }
     const tempDiv = document.createElement("div");
-    await import_obsidian.MarkdownRenderer.render(this.app, protectedMarkdown, tempDiv, file.path, this);
+    await import_obsidian.MarkdownRenderer.render(this.app, protectedMarkdown, tempDiv, file.path, null);
     if (hasMath) {
-      let html2 = tempDiv.innerHTML;
-      mathPlaceholders.forEach((latex, index) => {
-        const blockPlaceholder = `MATH_BLOCK_PLACEHOLDER_${index}_END`;
-        const inlinePlaceholder = `MATH_INLINE_PLACEHOLDER_${index}_END`;
-        if (latex.startsWith("$$") || latex.startsWith("\\[")) {
-          let pureLatex = latex;
-          if (latex.startsWith("$$")) {
-            pureLatex = latex.slice(2, -2);
-          } else if (latex.startsWith("\\[")) {
-            pureLatex = latex.slice(2, -2);
+      const processMathPlaceholders = (element) => {
+        if (element.nodeType === Node.TEXT_NODE) {
+          const text = element.textContent || "";
+          let hasPlaceholder = false;
+          for (let i = 0; i < mathPlaceholders.length; i++) {
+            if (text.includes(`MATH_BLOCK_PLACEHOLDER_${i}_END`) || text.includes(`MATH_INLINE_PLACEHOLDER_${i}_END`)) {
+              hasPlaceholder = true;
+              break;
+            }
           }
-          const escapedBlock = blockPlaceholder.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-          const regex = new RegExp(escapedBlock, "g");
-          html2 = html2.replace(regex, `<div class="math-display">${pureLatex}</div>`);
-        } else {
-          let pureLatex = latex;
-          if (latex.startsWith("$")) {
-            pureLatex = latex.slice(1, -1);
-          } else if (latex.startsWith("\\(")) {
-            pureLatex = latex.slice(2, -2);
+          if (!hasPlaceholder) {
+            return;
           }
-          const escapedInline = inlinePlaceholder.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-          const regex = new RegExp(escapedInline, "g");
-          html2 = html2.replace(regex, `<span class="math-inline">${pureLatex}</span>`);
+          const fragment = document.createDocumentFragment();
+          let remainingText = text;
+          let lastIndex = 0;
+          const replacements = [];
+          mathPlaceholders.forEach((latex, index) => {
+            const blockPlaceholder = `MATH_BLOCK_PLACEHOLDER_${index}_END`;
+            const inlinePlaceholder = `MATH_INLINE_PLACEHOLDER_${index}_END`;
+            let pos = remainingText.indexOf(blockPlaceholder);
+            while (pos !== -1) {
+              replacements.push({
+                start: pos,
+                end: pos + blockPlaceholder.length,
+                latex,
+                isBlock: true
+              });
+              pos = remainingText.indexOf(blockPlaceholder, pos + 1);
+            }
+            pos = remainingText.indexOf(inlinePlaceholder);
+            while (pos !== -1) {
+              replacements.push({
+                start: pos,
+                end: pos + inlinePlaceholder.length,
+                latex,
+                isBlock: false
+              });
+              pos = remainingText.indexOf(inlinePlaceholder, pos + 1);
+            }
+          });
+          replacements.sort((a, b) => a.start - b.start);
+          let currentPos = 0;
+          replacements.forEach((repl) => {
+            if (repl.start > currentPos) {
+              const textNode = document.createTextNode(remainingText.substring(currentPos, repl.start));
+              fragment.appendChild(textNode);
+            }
+            let pureLatex = repl.latex;
+            if (repl.isBlock) {
+              if (repl.latex.startsWith("$$")) {
+                pureLatex = repl.latex.slice(2, -2);
+              } else if (repl.latex.startsWith("\\[")) {
+                pureLatex = repl.latex.slice(2, -2);
+              }
+              const mathDiv = document.createElement("div");
+              mathDiv.className = "math-display";
+              mathDiv.textContent = pureLatex;
+              fragment.appendChild(mathDiv);
+            } else {
+              if (repl.latex.startsWith("$")) {
+                pureLatex = repl.latex.slice(1, -1);
+              } else if (repl.latex.startsWith("\\(")) {
+                pureLatex = repl.latex.slice(2, -2);
+              }
+              const mathSpan = document.createElement("span");
+              mathSpan.className = "math-inline";
+              mathSpan.textContent = pureLatex;
+              fragment.appendChild(mathSpan);
+            }
+            currentPos = repl.end;
+          });
+          if (currentPos < remainingText.length) {
+            const textNode = document.createTextNode(remainingText.substring(currentPos));
+            fragment.appendChild(textNode);
+          }
+          const parent = element.parentNode;
+          if (parent) {
+            parent.replaceChild(fragment, element);
+          }
+        } else if (element.nodeType === Node.ELEMENT_NODE) {
+          Array.from(element.childNodes).forEach((child) => processMathPlaceholders(child));
         }
-      });
-      tempDiv.innerHTML = html2;
+      };
+      processMathPlaceholders(tempDiv);
     }
     const headings = tempDiv.querySelectorAll("h1, h2, h3, h4, h5, h6");
     const headingsData = [];
